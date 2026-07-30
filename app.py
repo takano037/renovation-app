@@ -10,6 +10,7 @@ st.write("部屋の写真をアップロードして、床材や壁紙を合成�
 uploaded_file = st.file_uploader("部屋の写真をアップロード", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
+    # 画像の読み込みと自動リサイズ（メモリオーバー対策）
     image = Image.open(uploaded_file)
     max_size = 1000
     image.thumbnail((max_size, max_size))
@@ -27,14 +28,14 @@ if uploaded_file is not None:
         st.session_state.points = []
         st.rerun()
 
-    # ガイドの描画
+    # ガイドの描画（選択した点に赤い丸と番号を表示）
     img_display = img_np.copy()
     for i, pt in enumerate(st.session_state.points):
         cv2.circle(img_display, (pt[0], pt[1]), 10, (255, 0, 0), -1)
         cv2.putText(img_display, str(i + 1), (pt[0] + 15, pt[1] + 15),
                     cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
 
-    # 3点以上あれば多角形の枠線を描画
+    # 3点以上あれば多角形の外枠線を描画
     if len(st.session_state.points) >= 3:
         pts_arr = np.array(st.session_state.points, np.int32).reshape((-1, 1, 2))
         cv2.polylines(img_display, [pts_arr], isClosed=True, color=(255, 0, 0), thickness=3)
@@ -69,12 +70,12 @@ if uploaded_file is not None:
             else:
                 color = (230, 230, 230)
 
-            # 多角形（3〜6角形）のマスク作成
+            # 多角形（3〜6角形）のマスク作成（確実に全域を塗り潰す構造）
             mask = np.zeros((h, w), dtype=np.uint8)
-            pts_array = np.array(st.session_state.points, np.int32)
-            cv2.fillPoly(mask, [pts_array], 255)
+            pts_array = np.array([st.session_state.points], dtype=np.int32)
+            cv2.fillPoly(mask, pts_array, 255)
 
-            # 合成処理（指定エリアを指定色・パターンで塗り潰し）
+            # 合成処理（指定エリアを完璧に塗り潰し）
             img_result = img_np.copy()
             img_result[mask == 255] = color
 
