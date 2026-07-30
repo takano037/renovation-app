@@ -62,20 +62,20 @@ if uploaded_file is not None:
     # 3点以上選択されていれば「イメージを合成する」ボタンを有効化
     if len(st.session_state.points) >= 3:
         if st.button("イメージを合成する"):
-            # 選択された床材に応じた色設定
+            # 選択された床材に応じた色設定（タイポを修正）
             if "ナチュラル" in selected_floor:
-                color = (120, 180, 220) # BGR相当
+                color = [220, 180, 120]  # RGB指定
             elif "ダーク" in selected_floor:
-                color = (40, 60, 90)
+                color = [90, 60, 40]
             else:
-                color = (230, 230, 230)
+                color = [230, 230, 230]
 
-            # 多角形（3〜6角形）のマスク作成（確実に全域を塗り潰す構造）
+            # 多角形（3〜6角形）のマスク作成
             mask = np.zeros((h, w), dtype=np.uint8)
             pts_array = np.array([st.session_state.points], dtype=np.int32)
             cv2.fillPoly(mask, pts_array, 255)
 
-            # 合成処理（指定エリアを完璧に塗り潰し）
+            # 指定エリアを隙間なく完璧に塗り潰す
             img_result = img_np.copy()
             img_result[mask == 255] = color
 
