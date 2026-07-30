@@ -11,11 +11,11 @@ st.write("部屋の写真をアップロードして、プリセット素材や�
 uploaded_room = st.file_uploader("部屋の写真をアップロード", type=["jpg", "jpeg", "png"])
 
 if uploaded_room is not None:
-    # スマホ写真の回転（Exif）情報を自動補正して縦横を維持
+    # スマホ写真の回転（Exif）情報を自動補正
     room_img = Image.open(uploaded_room)
     room_img = ImageOps.exif_transpose(room_img)
     
-    # メモリ・表示崩れ対策のリサイズ
+    # メモリ対策のリサイズ（元画像サイズ）
     max_size = 1000
     room_img.thumbnail((max_size, max_size))
     
@@ -44,13 +44,26 @@ if uploaded_room is not None:
         cv2.polylines(img_display, [pts_arr], isClosed=True, color=(255, 0, 0), thickness=3)
 
     img_pil_display = Image.fromarray(img_display)
-    
-    # スマホ画面で画像がはみ出さないように設定
+
+    # --- スマホ画面（はみ出し防止）用の表示サイズ調整 ---
+    display_max_width = 500  # スマホ画面に収まる最大幅
+    disp_w = w
+    disp_h = h
+    if w > display_max_width:
+        scale = display_max_width / float(w)
+        disp_w = display_max_width
+        disp_h = int(h * scale)
+        img_pil_display = img_pil_display.resize((disp_w, disp_h))
+    else:
+        scale = 1.0
+
+    # 画面にぴったり収まる画像を表示してタップ座標を取得
     coords = streamlit_image_coordinates(img_pil_display, key="pil_coords")
 
     if coords is not None and len(st.session_state.points) < 6:
-        click_x = int(coords["x"])
-        click_y = int(coords["y"])
+        # 表示サイズ上の座標から元画像サイズ（1000px基準）の座標へ正しく倍率換算
+        click_x = int(coords["x"] / scale)
+        click_y = int(coords["y"] / scale)
         
         new_pt = [click_x, click_y]
         if not st.session_state.points or st.session_state.points[-1] != new_pt:
@@ -100,7 +113,6 @@ if uploaded_room is not None:
         uploaded_texture = st.file_uploader("お持ちの素材画像（JPG/PNG）をアップロード", type=["jpg", "jpeg", "png"])
         if uploaded_texture is not None:
             custom_pil = Image.open(uploaded_texture)
-            # 素材画像側も回転補正
             custom_pil = ImageOps.exif_transpose(custom_pil)
             custom_np = np.array(custom_pil)
             if custom_np.shape[2] == 4:
