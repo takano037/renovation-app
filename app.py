@@ -2,19 +2,47 @@ import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
-import urllib.request
 from streamlit_image_coordinates import streamlit_image_coordinates
 
 st.title("🏠 リフォームイメージ作成アプリ")
 st.write("部屋の写真をアップロードして、床材や壁紙を合成してみましょう。")
 
-# ネット上のテクスチャ画像（サンプル）を取得する関数
-@st.cache_data
-def load_texture(url):
-    req = urllib.request.urlopen(url)
-    arr = np.asarray(bytearray(req.read()), dtype=np.uint8)
-    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+# テクスチャ画像をプログラム内で自動生成する関数
+def generate_texture(pattern_type):
+    # 200x200ピクセルのキャンバスを作成
+    tex = np.zeros((200, 200, 3), dtype=np.uint8)
+    
+    if pattern_type == "oak":  # オーク木目
+        tex[:] = (210, 180, 140)
+        for y in range(0, 200, 20):  # 板目・木目線
+            cv2.line(tex, (0, y), (200, y), (180, 150, 110), 2)
+            cv2.line(tex, (0, y+1), (200, y+1), (230, 200, 160), 1)
+            
+    elif pattern_type == "walnut":  # ウォールナット木目
+        tex[:] = (80, 55, 35)
+        for y in range(0, 200, 25):
+            cv2.line(tex, (0, y), (200, y), (50, 35, 20), 3)
+            cv2.line(tex, (0, y+1), (200, y+1), (100, 70, 45), 1)
+            
+    elif pattern_type == "brick":  # レンガ調クロス
+        tex[:] = (240, 240, 235)
+        # 横目地
+        for y in range(0, 200, 30):
+            cv2.line(tex, (0, y), (200, y), (200, 200, 195), 2)
+        # 縦目地
+        for y_idx, y in enumerate(range(0, 200, 30)):
+            offset = 50 if y_idx % 2 == 1 else 0
+            for x in range(offset, 200, 100):
+                cv2.line(tex, (x, y), (x, y+30), (200, 200, 195), 2)
+                
+    elif pattern_type == "gray_fabric":  # シックグレー織物調
+        tex[:] = (130, 135, 140)
+        # 織り目グリッド
+        for i in range(0, 200, 6):
+            cv2.line(tex, (i, 0), (i, 200), (115, 120, 125), 1)
+            cv2.line(tex, (0, i), (200, i), (145, 150, 155), 1)
+            
+    return tex
 
 uploaded_file = st.file_uploader("部屋の写真をアップロード", type=["jpg", "jpeg", "png"])
 
@@ -64,49 +92,38 @@ if uploaded_file is not None:
     
     target_type = st.radio("張り替える部位", ["床材", "壁紙"], horizontal=True)
 
-    # サンプルテクスチャ画像のURLリスト
     if target_type == "床材":
         selected_material = st.selectbox("床材パターン", [
-            "オークフローリング（木目）", 
-            "ダークウォールナット（木目）"
+            "オークフローリング（ナチュラル木目）", 
+            "ダークウォールナット（深み木目）"
         ])
-        if "オーク" in selected_material:
-            texture_url = "https://raw.githubusercontent.com/streamlit/educational-resources/main/images/wood_light.jpg"
-        else:
-            texture_url = "https://raw.githubusercontent.com/streamlit/educational-resources/main/images/wood_dark.jpg"
+        pattern_key = "oak" if "オーク" in selected_material else "walnut"
     else:
         selected_material = st.selectbox("壁紙パターン", [
-            "シックグレー（クロス）", 
-            "レンガ調ホワイト"
+            "シックグレー（織物クロス調）", 
+            "レンガ調ホワイトクロス"
         ])
-        if "グレー" in selected_material:
-            texture_url = "https://raw.githubusercontent.com/streamlit/educational-resources/main/images/fabric_gray.jpg"
-        else:
-            texture_url = "https://raw.githubusercontent.com/streamlit/educational-resources/main/images/brick_white.jpg"
+        pattern_key = "gray_fabric" if "グレー" in selected_material else "brick"
 
     if len(st.session_state.points) >= 3:
         if st.button("イメージを合成する"):
-            # テクスチャ画像の読み込み（150x150px程度にリサイズ）
-            try:
-                tex_img = load_texture(texture_url)
-                tex_img = cv2.resize(tex_img, (150, 150))
-                
-                # 画像全体にテクスチャをタイリング（敷き詰め）
-                th, tw, _ = tex_img.shape
-                tiled_texture = np.tile(tex_img, (h // th + 1, w // tw + 1, 1))[:h, :w]
+            # プログラム内生成テクスチャを取得
+            tex_img = generate_texture(pattern_key)
+            
+            # 画像全体にテクスチャをタイリング（敷き詰め）
+            th, tw, _ = tex_img.shape
+            tiled_texture = np.tile(tex_img, (h // th + 1, w // tw + 1, 1))[:h, :w]
 
-                # 多角形マスクの作成
-                mask = np.zeros((h, w), dtype=np.uint8)
-                pts_array = np.array([st.session_state.points], dtype=np.int32)
-                cv2.fillPoly(mask, pts_array, 255)
+            # 多角形マスクの作成
+            mask = np.zeros((h, w), dtype=np.uint8)
+            pts_array = np.array([st.session_state.points], dtype=np.int32)
+            cv2.fillPoly(mask, pts_array, 255)
 
-                # テクスチャ画像の重ね合わせ（透過処理など）
-                img_result = img_np.copy()
-                img_result[mask == 255] = tiled_texture[mask == 255]
+            # テクスチャの重ね合わせ
+            img_result = img_np.copy()
+            img_result[mask == 255] = tiled_texture[mask == 255]
 
-                st.success("実際のテクスチャ画像で合成が完了しました！")
-                st.image(img_result, caption="リフォーム後イメージ", use_container_width=True)
-            except Exception as e:
-                st.error("画像の読み込みに失敗しました。")
+            st.success("リアルなテクスチャ柄で合成が完了しました！")
+            st.image(img_result, caption="リフォーム後イメージ", use_container_width=True)
     else:
         st.info("画像上の角を3箇所以上（最大6箇所）タップすると、合成ボタンが有効化されます。")
