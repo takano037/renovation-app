@@ -1,7 +1,7 @@
 import streamlit as st
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 from streamlit_image_coordinates import streamlit_image_coordinates
 
 st.title("🏠 リフォームイメージ作成アプリ")
@@ -11,7 +11,11 @@ st.write("部屋の写真をアップロードして、プリセット素材や�
 uploaded_room = st.file_uploader("部屋の写真をアップロード", type=["jpg", "jpeg", "png"])
 
 if uploaded_room is not None:
+    # スマホ写真の回転（Exif）情報を自動補正して縦横を維持
     room_img = Image.open(uploaded_room)
+    room_img = ImageOps.exif_transpose(room_img)
+    
+    # メモリ・表示崩れ対策のリサイズ
     max_size = 1000
     room_img.thumbnail((max_size, max_size))
     
@@ -28,6 +32,7 @@ if uploaded_room is not None:
         st.session_state.points = []
         st.rerun()
 
+    # ガイド描画
     img_display = img_np.copy()
     for i, pt in enumerate(st.session_state.points):
         cv2.circle(img_display, (pt[0], pt[1]), 10, (255, 0, 0), -1)
@@ -39,6 +44,8 @@ if uploaded_room is not None:
         cv2.polylines(img_display, [pts_arr], isClosed=True, color=(255, 0, 0), thickness=3)
 
     img_pil_display = Image.fromarray(img_display)
+    
+    # スマホ画面で画像がはみ出さないように設定
     coords = streamlit_image_coordinates(img_pil_display, key="pil_coords")
 
     if coords is not None and len(st.session_state.points) < 6:
@@ -93,6 +100,8 @@ if uploaded_room is not None:
         uploaded_texture = st.file_uploader("お持ちの素材画像（JPG/PNG）をアップロード", type=["jpg", "jpeg", "png"])
         if uploaded_texture is not None:
             custom_pil = Image.open(uploaded_texture)
+            # 素材画像側も回転補正
+            custom_pil = ImageOps.exif_transpose(custom_pil)
             custom_np = np.array(custom_pil)
             if custom_np.shape[2] == 4:
                 custom_np = cv2.cvtColor(custom_np, cv2.COLOR_RGBA2RGB)
