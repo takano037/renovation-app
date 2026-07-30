@@ -11,11 +11,9 @@ st.write("部屋の写真をアップロードして、プリセット素材や�
 uploaded_room = st.file_uploader("部屋の写真をアップロード", type=["jpg", "jpeg", "png"])
 
 if uploaded_room is not None:
-    # スマホ写真の回転（Exif）情報を自動補正
     room_img = Image.open(uploaded_room)
     room_img = ImageOps.exif_transpose(room_img)
     
-    # メモリ対策のリサイズ（元画像サイズ）
     max_size = 1000
     room_img.thumbnail((max_size, max_size))
     
@@ -45,8 +43,8 @@ if uploaded_room is not None:
 
     img_pil_display = Image.fromarray(img_display)
 
-    # --- スマホ画面（はみ出し防止）用の表示サイズ調整 ---
-    display_max_width = 500  # スマホ画面に収まる最大幅
+    # スマホはみ出し防止サイズ調整
+    display_max_width = 500
     disp_w = w
     disp_h = h
     if w > display_max_width:
@@ -57,11 +55,9 @@ if uploaded_room is not None:
     else:
         scale = 1.0
 
-    # 画面にぴったり収まる画像を表示してタップ座標を取得
     coords = streamlit_image_coordinates(img_pil_display, key="pil_coords")
 
     if coords is not None and len(st.session_state.points) < 6:
-        # 表示サイズ上の座標から元画像サイズ（1000px基準）の座標へ正しく倍率換算
         click_x = int(coords["x"] / scale)
         click_y = int(coords["y"] / scale)
         
@@ -72,7 +68,7 @@ if uploaded_room is not None:
 
     st.write(f"現在選択された点の数: {len(st.session_state.points)} / 6 (最小3点が必要)")
 
-    # 2. 素材の選択方式（プリセット or 直接アップロード）
+    # 2. 素材の選択方式
     st.subheader("2. 張り替える素材を選択")
     
     tab1, tab2 = st.tabs(["① プリセット素材から選ぶ", "② 画像を直接アップロード"])
@@ -88,7 +84,6 @@ if uploaded_room is not None:
             selected_material = st.selectbox("壁紙パターン", ["シックグレー（織物クロス調）", "レンガ調ホワイトクロス"])
             pattern_key = "gray_fabric" if "グレー" in selected_material else "brick"
 
-        # 簡易プリセットテクスチャ生成
         preset_tex = np.zeros((400, 400, 3), dtype=np.uint8)
         if pattern_key == "oak":
             preset_tex[:] = (210, 180, 140)
@@ -120,7 +115,7 @@ if uploaded_room is not None:
             tex_img = custom_np
             st.success("カスタム素材画像を使用します！")
 
-    # 3. 合成処理
+    # 3. 合成処理（明るさ保持＋ナチュラル陰影ブレンド）
     if len(st.session_state.points) >= 3:
         if st.button("イメージを合成する"):
             pts_cnt = len(st.session_state.points)
@@ -136,10 +131,16 @@ if uploaded_room is not None:
                 th, tw, _ = tex_img.shape
                 warped_texture = np.tile(tex_img, (h // th + 1, w // tw + 1, 1))[:h, :w]
 
-            # 陰影ブレンド
+            # --- 明るさを潰さないマイルド陰影ブレンド ---
+            # 1. 元画像の明暗（グレースケール）を取得
             gray_orig = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY).astype(float) / 255.0
-            shadow_map = np.dstack([gray_orig, gray_orig, gray_orig])
-            blended_texture = (warped_texture.astype(float) * shadow_map * 1.2).clip(0, 255).astype(np.uint8)
+            
+            # 2. 影の強さを調整（元背景の暗さを抑え、明るさを80%以上保持）
+            shadow_map = 0.75 + (gray_orig * 0.25)
+            shadow_map = np.dstack([shadow_map, shadow_map, shadow_map])
+
+            # 3. 素材画像本来の発色と明るさを保ちつつ薄く影をのせる
+            blended_texture = (warped_texture.astype(float) * shadow_map).clip(0, 255).astype(np.uint8)
 
             # マスク適用
             mask = np.zeros((h, w), dtype=np.uint8)
