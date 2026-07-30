@@ -18,8 +18,8 @@ if uploaded_file is not None:
     img_np = np.array(image)
     h, w, _ = img_np.shape
 
-    st.subheader("1. 床（または壁）の角をタップ（3〜6箇所）")
-    st.write("時計回りに角をタップしてください。最大6箇所まで指定できます（4箇所や5箇所でもOK）。")
+    st.subheader("1. 張り替えるエリア（床または壁）の角をタップ（3〜6箇所）")
+    st.write("時計回りに角をタップしてください。最大6箇所まで指定できます。")
 
     if "points" not in st.session_state:
         st.session_state.points = []
@@ -55,18 +55,39 @@ if uploaded_file is not None:
 
     st.write(f"現在選択された点の数: {len(st.session_state.points)} / 6 (最小3点が必要)")
 
-    # 2. 素材選択
+    # 2. 張り替え素材（床材・壁紙）の選択
     st.subheader("2. 張り替える素材を選択")
-    selected_floor = st.selectbox("床材パターン", ["木目調フローリング（ナチュラル）", "ダークウォールナット", "大理石タイル"])
+    
+    target_type = st.radio("張り替える部位", ["床材", "壁紙"], horizontal=True)
+
+    if target_type == "床材":
+        selected_material = st.selectbox("床材パターン", [
+            "木目調フローリング（ナチュラル）", 
+            "ダークウォールナット", 
+            "大理石タイル"
+        ])
+    else:
+        selected_material = st.selectbox("壁紙パターン", [
+            "アクセントクロス（シックグレー）", 
+            "アクセントクロス（ネイビー）", 
+            "ナチュラルホワイトクロス",
+            "木目調アクセントクロス"
+        ])
 
     # 3点以上選択されていれば「イメージを合成する」ボタンを有効化
     if len(st.session_state.points) >= 3:
         if st.button("イメージを合成する"):
-            # 選択された床材に応じた色設定（タイポを修正）
-            if "ナチュラル" in selected_floor:
-                color = [220, 180, 120]  # RGB指定
-            elif "ダーク" in selected_floor:
+            # 色の設定（RGB指定）
+            if "ナチュラル" in selected_material:
+                color = [220, 180, 120]
+            elif "ダーク" in selected_material:
                 color = [90, 60, 40]
+            elif "グレー" in selected_material:
+                color = [130, 135, 140]
+            elif "ネイビー" in selected_material:
+                color = [40, 50, 80]
+            elif "ホワイト" in selected_material:
+                color = [245, 245, 240]
             else:
                 color = [230, 230, 230]
 
@@ -75,7 +96,7 @@ if uploaded_file is not None:
             pts_array = np.array([st.session_state.points], dtype=np.int32)
             cv2.fillPoly(mask, pts_array, 255)
 
-            # 指定エリアを隙間なく完璧に塗り潰す
+            # 指定エリアを塗り潰し
             img_result = img_np.copy()
             img_result[mask == 255] = color
 
