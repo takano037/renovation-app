@@ -78,13 +78,26 @@ if uploaded_room is not None:
 
     with tab1:
         assets_dir = "assets"
-        # assets フォルダ内の画像ファイルを自動取得
+        
+        # --- ファイル名と表示名の対応表（ここに追加していきます） ---
+        NAME_MAP = {
+            "SGM1327_C01.jpg": "サンゲツ：ホワイト織物調クロス (SGM1327)",
+            # 新しい素材を追加したらここに追加できます
+            # "oak.jpg": "オークフローリング（ナチュラル）",
+        }
+
         preset_files = []
         if os.path.exists(assets_dir):
             preset_files = [f for f in os.listdir(assets_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
 
         if preset_files:
-            selected_file = st.selectbox("登録済みプリセット画像", preset_files)
+            # 表示名からファイル名を取得できるように逆引きマップを作成
+            display_options = [NAME_MAP.get(f, f) for f in preset_files]
+            display_to_filename = {NAME_MAP.get(f, f): f for f in preset_files}
+
+            selected_display_name = st.selectbox("登録済みプリセット画像", display_options)
+            selected_file = display_to_filename[selected_display_name]
+            
             file_path = os.path.join(assets_dir, selected_file)
             
             preset_pil = Image.open(file_path)
@@ -94,15 +107,10 @@ if uploaded_room is not None:
                 preset_np = cv2.cvtColor(preset_np, cv2.COLOR_RGBA2RGB)
             tex_img = preset_np
             
-            st.image(preset_pil, caption=f"選択中: {selected_file}", width=150)
+            # サムネイル表示
+            st.image(preset_pil, caption=f"選択中: {selected_display_name}", width=150)
         else:
-            st.warning("`assets` フォルダに画像がまだありません。手描きサンプルを表示します。")
-            # フォールバック用の手描きサンプル
-            preset_tex = np.zeros((400, 400, 3), dtype=np.uint8)
-            preset_tex[:] = (210, 180, 140)
-            for y in range(0, 400, 40):
-                cv2.line(preset_tex, (0, y), (400, y), (180, 150, 110), 3)
-            tex_img = preset_tex
+            st.warning("`assets` フォルダに画像がまだありません。")
 
     with tab2:
         uploaded_texture = st.file_uploader("お持ちの素材画像（JPG/PNG）をアップロード", type=["jpg", "jpeg", "png"])
