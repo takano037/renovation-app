@@ -3,6 +3,7 @@ import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image, ImageOps
+import io  # 画像ダウンロード用
 from streamlit_image_coordinates import streamlit_image_coordinates
 
 # 画像を任意の角度で回転（黒枠が出ないようにクロップ）する関数
@@ -359,8 +360,37 @@ if uploaded_room is not None:
 
                 layer["opacity_pct"] = st.slider("不透明度(%)", 10, 100, layer["opacity_pct"], 5, key=f"opac_{idx}")
 
-    # 最終プレビュー表示
+    # --- 3. 最終プレビューと品番表示・保存ボタン ---
     final_output_np = render_all_layers(original_np, st.session_state.layers)
     st.write("---")
     st.subheader("🖼️ 全体コーディネート完成イメージ")
     st.image(final_output_np, caption="リアルタイム調整後の完成イメージ", use_container_width=True)
+
+    # --- ★ 追加機能：使用中の素材品番（ファイル名）一覧表示 ---
+    if st.session_state.layers:
+        st.markdown("**📋 このイメージで使用中の素材品番（品番: カテゴリ）**")
+        for layer in st.session_state.layers:
+            # ファイルパスからファイル名（拡張子なし）とカテゴリ名を取得
+            filename_with_ext = os.path.basename(layer["tex_path"])
+            filename_no_ext = os.path.splitext(filename_with_ext)[0]  # 品番
+            category_name = os.path.basename(os.path.dirname(layer["tex_path"]))  # カテゴリ
+            
+            st.markdown(f"- **{filename_no_ext}** ({category_name})")
+
+    # --- ★ 追加機能：イメージ保存（ダウンロード）ボタン ---
+    # OpenCV(BGR)からPIL(RGB)に変換
+    final_pil = Image.fromarray(final_output_np)
+    
+    # 画像をメモリ上のバッファにJPEGとして保存
+    buf = io.BytesIO()
+    final_pil.save(buf, format="JPEG", quality=95)
+    byte_im = buf.getvalue()
+
+    # ダウンロードボタンを設置
+    st.download_button(
+        label="💾 このリフォームイメージを保存する",
+        data=byte_im,
+        file_name="reform_simulation.jpg",
+        mime="image/jpeg",
+        type="primary"  # ボタンを目立たせる
+    )
