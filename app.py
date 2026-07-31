@@ -354,12 +354,10 @@ if uploaded_room is not None:
         st.caption("保存済みのエリアの柄、向き、透明度、および「角の位置」を修正できます。")
 
         for idx, layer in enumerate(st.session_state.layers):
-            # アコーディオンの展開状態をセッションで管理し、リロード時に閉じないようにする
             expander_key = f"expander_state_{idx}"
             is_expanded = st.session_state.get(expander_key, False)
             
             with st.expander(f"📍 エリア {idx+1}: {layer['name']}", expanded=is_expanded):
-                # アコーディオンが開かれたら状態を更新
                 st.session_state[expander_key] = True
                 
                 c_del, _ = st.columns([1, 3])
@@ -368,7 +366,7 @@ if uploaded_room is not None:
                         st.session_state.layers.pop(idx)
                         st.rerun()
 
-                # 編集枠専用の「リアルタイムプレビュー画像」を生成・描画
+                # --- 編集枠専用プレビュー画像の作成 ---
                 layer_prev_np = render_all_layers(original_np, st.session_state.layers)
                 for i, pt in enumerate(layer["points"]):
                     cv2.circle(layer_prev_np, (pt[0], pt[1]), 10, (0, 0, 255), -1)  # 赤い丸
@@ -379,28 +377,47 @@ if uploaded_room is not None:
                     pts_arr = np.array(layer["points"], np.int32).reshape((-1, 1, 2))
                     cv2.polylines(layer_prev_np, [pts_arr], isClosed=True, color=(0, 0, 255), thickness=3)
 
-                st.image(layer_prev_np, caption=f"「{layer['name']}」の現在の範囲と合成状態", use_container_width=True)
+                layer_prev_pil = Image.fromarray(layer_prev_np)
 
-                # --- ★ 点の位置の微調整機能の改善 ---
+                # スマホ対応リサイズ
+                if w > display_max_width:
+                    scale_edit = display_max_width / float(w)
+                    edit_disp_w = display_max_width
+                    edit_disp_h = int(h * scale_edit)
+                    layer_prev_pil = layer_prev_pil.resize((edit_disp_w, edit_disp_h))
+                else:
+                    scale_edit = 1.0
+
+                # --- 位置調整エリア ---
                 st.markdown("**🎯 角（ポイント）の位置調整**")
                 
-                # 調整中の点をセッションで保持し、ボタン押下時にリセットされないようにする
                 pt_sel_key = f"pt_sel_idx_{idx}"
-                # セッションになければ 0 (点1) で初期化
                 if pt_sel_key not in st.session_state:
                     st.session_state[pt_sel_key] = 0
                 
                 pt_labels = [f"点 {i+1}: (X: {pt[0]}, Y: {pt[1]})" for i, pt in enumerate(layer["points"])]
-                # セッション状態を index に指定
                 selected_pt_idx = st.selectbox("調整したい点を選択", range(len(layer["points"])), index=st.session_state[pt_sel_key], format_func=lambda i: pt_labels[i], key=f"pt_sel_sb_{idx}")
-                # selectbox で選択が変わったらセッションに保存
+                
                 if selected_pt_idx != st.session_state[pt_sel_key]:
                     st.session_state[pt_sel_key] = selected_pt_idx
-                    st.rerun() # 選択変更時に即時反映
+                    st.rerun()
 
-                # 1px移動ボタン
+                st.caption(f"💡 「点 {selected_pt_idx+1}」を移動したい場所を画像上で直接タップするか、下の矢印ボタンで微調整できます。")
+
+                # 画像上での直接タップ検知（ワンタップで大きく移動）
+                edit_coords = streamlit_image_coordinates(layer_prev_pil, key=f"edit_coords_{idx}")
+                if edit_coords is not None:
+                    edit_click_x = int(edit_coords["x"] / scale_edit)
+                    edit_click_y = int(edit_coords["y"] / scale_edit)
+                    new_edit_pt = [edit_click_x, edit_click_y]
+                    
+                    if layer["points"][selected_pt_idx] != new_edit_pt:
+                        layer["points"][selected_pt_idx] = new_edit_pt
+                        st.rerun()
+
+                # 1px移動ボタン（微調整用）
                 col_up, col_down, col_left, col_right = st.columns(4)
-                step_1 = 1  # 1回の移動ドット数
+                step_1 = 1
                 with col_up:
                     if st.button("⬆️ 上へ", key=f"up_{idx}"):
                         layer["points"][selected_pt_idx][1] -= step_1
@@ -418,9 +435,9 @@ if uploaded_room is not None:
                         layer["points"][selected_pt_idx][0] += step_1
                         st.rerun()
                 
-                # ★ 3px移動ボタン（⏫ ⏬ ⏪ ⏩）の追加
+                # 3px移動ボタン（微調整用）
                 col_sup, col_sdown, col_sleft, col_sright = st.columns(4)
-                step_3 = 3  # 1回の移動ドット数
+                step_3 = 3
                 with col_sup:
                     if st.button("⏫ 上へ(3)", key=f"sup_{idx}"):
                         layer["points"][selected_pt_idx][1] -= step_3
