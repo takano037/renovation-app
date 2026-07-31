@@ -97,17 +97,42 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            # スマホ環境（768px以下）でも縦1列に落ちないようにレスポンシブを上書きする強固なCSS
+            # スマホ縦画面でも強制的に5列で並べるCSS（Flexbox崩れ防止版）
             st.markdown("""
                 <style>
-                /* PC表示時のボタンカラー・基本スタイル */
-                div[data-testid="column"] button {
-                    padding: 2px 0px !important;
-                    font-size: 11px !important;
+                /* ポップアップ内のレスポンシブ崩し */
+                div[data-testid="stHorizontalBlock"] {
+                    display: flex !important;
+                    flex-direction: row !important;
+                    flex-wrap: nowrap !important;
+                    justify-content: space-between !important;
+                    gap: 2px !important;
+                }
+                div[data-testid="column"] {
+                    width: 18% !important;
+                    flex: 1 1 18% !important;
+                    min-width: 0 !important;
+                    padding: 0 !important;
+                }
+                div[data-testid="column"] img {
+                    height: 50px !important;
+                    object-fit: cover !important;
+                    border-radius: 3px !important;
+                }
+                /* 深緑色ボタンの指定 */
+                div[data-testid="column"] button,
+                div[data-testid="column"] button[kind="primary"],
+                div[data-testid="column"] button[kind="secondary"] {
+                    padding: 1px 0px !important;
+                    font-size: 9px !important;
                     background-color: #2e5a44 !important;
+                    background: #2e5a44 !important;
                     color: white !important;
                     border: none !important;
-                    border-radius: 4px !important;
+                    border-radius: 3px !important;
+                    min-height: 20px !important;
+                    height: 20px !important;
+                    line-height: 1 !important;
                 }
                 div[data-testid="column"] button:hover {
                     background-color: #1f3f2f !important;
@@ -115,31 +140,8 @@ if uploaded_room is not None:
                 }
                 div[data-testid="column"] button:disabled {
                     background-color: #e0e0e0 !important;
+                    background: #e0e0e0 !important;
                     color: #888888 !important;
-                }
-
-                /* スマホ（画面幅768px以下）専用のレイアウト破棄・グリッド制御 */
-                @media (max-width: 768px) {
-                    div[data-testid="stHorizontalBlock"] {
-                        display: flex !important;
-                        flex-direction: row !important;
-                        flex-wrap: nowrap !important;
-                        gap: 0.3rem !important;
-                    }
-                    /* スマホ時は3列表示（※5列にしたい場合は 18% に変更） */
-                    div[data-testid="column"] {
-                        width: 31% !important;
-                        flex: 0 0 31% !important;
-                        min-width: 31% !important;
-                    }
-                    div[data-testid="column"] img {
-                        height: 70px !important;
-                        object-fit: cover !important;
-                    }
-                    div[data-testid="column"] button {
-                        font-size: 10px !important;
-                        height: 26px !important;
-                    }
                 }
                 </style>
             """, unsafe_allow_html=True)
