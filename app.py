@@ -287,7 +287,8 @@ if uploaded_room is not None:
 
     coords = streamlit_image_coordinates(img_pil_display, key="pil_coords")
 
-    if coords is not None and len(st.session_state.current_points) < 6:
+    # ★ 上限を 8 点に拡張
+    if coords is not None and len(st.session_state.current_points) < 8:
         click_x = int(coords["x"] / scale)
         click_y = int(coords["y"] / scale)
         new_pt = [click_x, click_y]
@@ -295,7 +296,7 @@ if uploaded_room is not None:
             st.session_state.current_points.append(new_pt)
             st.rerun()
 
-    st.write(f"現在選択された点の数: {len(st.session_state.current_points)} / 6")
+    st.write(f"現在選択された点の数: {len(st.session_state.current_points)} / 8")
 
     # 新規レイヤー追加エリア
     if len(st.session_state.current_points) >= 3:
