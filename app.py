@@ -19,7 +19,7 @@ def rotate_image(image, angle):
     rotated = cv2.warpAffine(image, M, (new_w, new_h), borderMode=cv2.BORDER_REFLECT)
     return rotated
 
-st.title("リフォームイメージ作成")
+st.title("🏠 リフォームイメージ作成")
 st.write("部屋の写真をアップロードして、床・壁・天井などを順番に張り替えてみましょう。")
 
 # --- セッション状態の初期化 ---
@@ -234,14 +234,18 @@ if uploaded_room is not None:
             tex_img = custom_np
             st.success("カスタム素材画像を使用します！")
 
-    # --- 3. 素材の向き・サイズ調整 ---
-    st.subheader("3. 模様の向きとサイズ（縮小倍率）調整")
+    # --- 3. 素材の向き・サイズ・透明度調整 ---
+    st.subheader("3. 模様の向き・サイズ・透明度調整")
     
     col_dir, col_rep = st.columns([1, 2])
     with col_dir:
         rotation_opt = st.radio("柄の向き", ["標準（縦）", "90度回転（横）", "右斜め（45度）", "左斜め（-45度）"], horizontal=False)
     with col_rep:
         repeat_count = st.slider("柄の細かさ（リピート回数）", min_value=1, max_value=8, value=3)
+
+    # 不透明度（透明度）調整スライダーの追加
+    opacity_pct = st.slider("素材の不透明度（100%=そのまま, 50%=薄く重ねる）", min_value=10, max_value=100, value=100, step=5)
+    alpha = opacity_pct / 100.0
 
     # 4. 合成処理
     if len(st.session_state.points) >= 3 and tex_img is not None:
@@ -280,13 +284,17 @@ if uploaded_room is not None:
 
             blended_texture = (warped_texture.astype(float) * shadow_map).clip(0, 255).astype(np.uint8)
 
-            # マスク適用
+            # マスク適用＆透明度（アルファブレンド）の適用
             mask = np.zeros((h, w), dtype=np.uint8)
             pts_array = np.array([st.session_state.points], dtype=np.int32)
             cv2.fillPoly(mask, pts_array, 255)
 
             img_result = img_np.copy()
-            img_result[mask == 255] = blended_texture[mask == 255]
+            
+            # 元の背景色と合成素材を不透明度(alpha)に応じてブレンドする
+            blended_area = (blended_texture[mask == 255].astype(float) * alpha + 
+                            img_np[mask == 255].astype(float) * (1.0 - alpha))
+            img_result[mask == 255] = blended_area.clip(0, 255).astype(np.uint8)
 
             # 合成後の画像を「新しいベース画像」として更新し、タップポイントをクリア
             st.session_state.base_image_np = img_result
