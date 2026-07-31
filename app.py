@@ -18,11 +18,13 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
 
+    /* 全体フォント適用 */
     html, body, [class*="css"], div[data-testid="stAppViewContainer"] {
         font-family: 'Inter', 'Noto Sans JP', sans-serif !important;
         letter-spacing: -0.01em;
     }
 
+    /* メインタイトルデザイン */
     .main-title {
         font-family: 'Inter', sans-serif;
         font-size: 2.2rem;
@@ -39,6 +41,7 @@ st.markdown("""
         font-weight: 500;
     }
 
+    /* アコーディオン・見出しデザインの洗練 */
     div[data-testid="stExpander"] {
         border-radius: 8px !important;
         border: 1px solid #e2e8f0 !important;
@@ -46,6 +49,7 @@ st.markdown("""
         background-color: #fafafa !important;
     }
 
+    /* ダウンロードボタンのデザイン */
     div[data-testid="stDownloadButton"] button {
         background-color: #2e5a44 !important;
         background: #2e5a44 !important;
@@ -60,6 +64,12 @@ st.markdown("""
         background-color: #1f3f2f !important;
         color: white !important;
         box-shadow: 0 4px 12px rgba(46, 90, 68, 0.25) !important;
+    }
+    
+    /* 調整ボタンのスタイル調整 */
+    div.stButton > button {
+        padding: 0.2rem 0.5rem !important;
+        font-size: 0.8rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -104,7 +114,7 @@ def process_layer(base_img, points, tex_path, rotation_opt, repeat_count, opacit
     else:
         tex_tiled = tex_np
 
-    # 変形
+    # 変形（BORDER_WRAP を指定して端に黒枠が混ざるのを完全に防止）
     pts_cnt = len(points)
     if pts_cnt == 4:
         pts1 = np.float32([[0, 0], [400, 0], [400, 400], [0, 400]])
@@ -122,7 +132,7 @@ def process_layer(base_img, points, tex_path, rotation_opt, repeat_count, opacit
     shadow_map = np.dstack([shadow_map, shadow_map, shadow_map])
     blended_texture = (warped_texture.astype(float) * shadow_map).clip(0, 255).astype(np.uint8)
 
-    # マスク作成
+    # マスク作成（アンチエイリアス処理による黒フチを回避するため二値化固定）
     alpha = opacity_pct / 100.0
     mask = np.zeros((h, w), dtype=np.uint8)
     pts_array = np.array([points], dtype=np.int32)
@@ -157,10 +167,44 @@ def open_material_gallery(folder_path, state_key_to_set):
     if files:
         st.markdown("""
             <style>
-            div[data-testid="stHorizontalBlock"] { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; gap: 0.2rem !important; }
-            div[data-testid="column"] { width: 19% !important; flex: 0 0 19% !important; min-width: 19% !important; padding: 0px !important; }
-            div[data-testid="column"] img { height: 55px !important; object-fit: cover !important; border-radius: 4px !important; }
-            div[data-testid="column"] button { padding: 2px 0px !important; font-size: 10px !important; background-color: #2e5a44 !important; color: white !important; border: none !important; border-radius: 3px !important; min-height: 22px !important; height: 22px !important; }
+            div[data-testid="stHorizontalBlock"] {
+                display: flex !important;
+                flex-direction: row !important;
+                flex-wrap: nowrap !important;
+                gap: 0.2rem !important;
+            }
+            div[data-testid="column"] {
+                width: 19% !important;
+                flex: 0 0 19% !important;
+                min-width: 19% !important;
+                padding: 0px !important;
+            }
+            div[data-testid="column"] img {
+                height: 55px !important;
+                object-fit: cover !important;
+                border-radius: 4px !important;
+            }
+            div[data-testid="column"] button,
+            div[data-testid="column"] button[kind="primary"],
+            div[data-testid="column"] button[kind="secondary"] {
+                padding: 2px 0px !important;
+                font-size: 10px !important;
+                background-color: #2e5a44 !important;
+                background: #2e5a44 !important;
+                color: white !important;
+                border: none !important;
+                border-radius: 3px !important;
+                min-height: 22px !important;
+                height: 22px !important;
+            }
+            div[data-testid="column"] button:hover {
+                background-color: #1f3f2f !important;
+                color: white !important;
+            }
+            div[data-testid="column"] button:disabled {
+                background-color: #e0e0e0 !important;
+                color: #888888 !important;
+            }
             </style>
         """, unsafe_allow_html=True)
 
@@ -181,6 +225,8 @@ def open_material_gallery(folder_path, state_key_to_set):
                         if st.button(btn_label, key=f"dialog_btn_{file_path}_{state_key_to_set}", disabled=is_selected, use_container_width=True):
                             st.session_state[state_key_to_set] = file_path
                             st.rerun()
+    else:
+        st.warning("このフォルダには画像がありません。")
 
 # --- タイトル表示 ---
 st.markdown('<div class="main-title">RoomSimulator</div>', unsafe_allow_html=True)
@@ -218,8 +264,10 @@ if uploaded_room is not None:
         st.session_state.current_points = []
         st.rerun()
 
+    # 現在のレイヤー群を重ね合わせた状態の画像を準備
     current_combined_np = render_all_layers(original_np, st.session_state.layers)
 
+    # タップ用の点描画
     img_display = current_combined_np.copy()
     for i, pt in enumerate(st.session_state.current_points):
         cv2.circle(img_display, (pt[0], pt[1]), 10, (255, 0, 0), -1)
@@ -232,6 +280,7 @@ if uploaded_room is not None:
 
     img_pil_display = Image.fromarray(img_display)
 
+    # スマホはみ出し防止
     display_max_width = 500
     disp_w, disp_h = w, h
     if w > display_max_width:
@@ -266,12 +315,14 @@ if uploaded_room is not None:
             target_path = os.path.join(assets_dir, selected_folder)
             files = sorted([f for f in os.listdir(target_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
             if files:
+                # デフォルトの選択画像をセット
                 if "new_selected_tex_path" not in st.session_state or not os.path.exists(st.session_state.new_selected_tex_path):
                     st.session_state.new_selected_tex_path = os.path.join(target_path, files[0])
 
                 if st.button("🖼️ 素材ギャラリー（一覧）を開く", key="btn_open_gallery_new"):
                     open_material_gallery(target_path, "new_selected_tex_path")
 
+                # 現在選択中の素材プレビュー
                 if os.path.exists(st.session_state.new_selected_tex_path):
                     st.caption("現在選択中の素材:")
                     st.image(st.session_state.new_selected_tex_path, width=100)
@@ -296,20 +347,31 @@ if uploaded_room is not None:
                     st.success(f"「{layer_name}」を追加しました！")
                     st.rerun()
 
-    # 登録済みエリアの調整・編集
+    # --- 登録済みエリアの調整・編集エリア ---
     if st.session_state.layers:
         st.write("---")
         st.subheader("⚙️ 登録済みエリアの再調整・編集")
+        st.caption("保存済みのエリアの柄、向き、透明度、および「角の位置」を修正できます。")
 
         for idx, layer in enumerate(st.session_state.layers):
-            with st.expander(f"📍 エリア {idx+1}: {layer['name']}", expanded=False):
-                if st.button(f"🗑️ このエリアを削除", key=f"del_{idx}"):
-                    st.session_state.layers.pop(idx)
-                    st.rerun()
+            # アコーディオンの展開状態をセッションで管理し、リロード時に閉じないようにする
+            expander_key = f"expander_state_{idx}"
+            is_expanded = st.session_state.get(expander_key, False)
+            
+            with st.expander(f"📍 エリア {idx+1}: {layer['name']}", expanded=is_expanded):
+                # アコーディオンが開かれたら状態を更新
+                st.session_state[expander_key] = True
+                
+                c_del, _ = st.columns([1, 3])
+                with c_del:
+                    if st.button(f"🗑️ このエリアを削除", key=f"del_{idx}"):
+                        st.session_state.layers.pop(idx)
+                        st.rerun()
 
+                # 編集枠専用の「リアルタイムプレビュー画像」を生成・描画
                 layer_prev_np = render_all_layers(original_np, st.session_state.layers)
                 for i, pt in enumerate(layer["points"]):
-                    cv2.circle(layer_prev_np, (pt[0], pt[1]), 10, (0, 0, 255), -1)
+                    cv2.circle(layer_prev_np, (pt[0], pt[1]), 10, (0, 0, 255), -1)  # 赤い丸
                     cv2.putText(layer_prev_np, str(i + 1), (pt[0] + 15, pt[1] + 15),
                                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
 
@@ -319,31 +381,66 @@ if uploaded_room is not None:
 
                 st.image(layer_prev_np, caption=f"「{layer['name']}」の現在の範囲と合成状態", use_container_width=True)
 
+                # --- ★ 点の位置の微調整機能の改善 ---
                 st.markdown("**🎯 角（ポイント）の位置調整**")
+                
+                # 調整中の点をセッションで保持し、ボタン押下時にリセットされないようにする
+                pt_sel_key = f"pt_sel_idx_{idx}"
+                # セッションになければ 0 (点1) で初期化
+                if pt_sel_key not in st.session_state:
+                    st.session_state[pt_sel_key] = 0
+                
                 pt_labels = [f"点 {i+1}: (X: {pt[0]}, Y: {pt[1]})" for i, pt in enumerate(layer["points"])]
-                selected_pt_idx = st.selectbox("調整したい点を選択", range(len(layer["points"])), format_func=lambda i: pt_labels[i], key=f"pt_sel_{idx}")
+                # セッション状態を index に指定
+                selected_pt_idx = st.selectbox("調整したい点を選択", range(len(layer["points"])), index=st.session_state[pt_sel_key], format_func=lambda i: pt_labels[i], key=f"pt_sel_sb_{idx}")
+                # selectbox で選択が変わったらセッションに保存
+                if selected_pt_idx != st.session_state[pt_sel_key]:
+                    st.session_state[pt_sel_key] = selected_pt_idx
+                    st.rerun() # 選択変更時に即時反映
 
+                # 1px移動ボタン
                 col_up, col_down, col_left, col_right = st.columns(4)
-                step = 10
+                step_1 = 1  # 1回の移動ドット数
                 with col_up:
                     if st.button("⬆️ 上へ", key=f"up_{idx}"):
-                        layer["points"][selected_pt_idx][1] -= step
+                        layer["points"][selected_pt_idx][1] -= step_1
                         st.rerun()
                 with col_down:
                     if st.button("⬇️ 下へ", key=f"down_{idx}"):
-                        layer["points"][selected_pt_idx][1] += step
+                        layer["points"][selected_pt_idx][1] += step_1
                         st.rerun()
                 with col_left:
                     if st.button("⬅️ 左へ", key=f"left_{idx}"):
-                        layer["points"][selected_pt_idx][0] -= step
+                        layer["points"][selected_pt_idx][0] -= step_1
                         st.rerun()
                 with col_right:
                     if st.button("➡️ 右へ", key=f"right_{idx}"):
-                        layer["points"][selected_pt_idx][0] += step
+                        layer["points"][selected_pt_idx][0] += step_1
+                        st.rerun()
+                
+                # ★ 3px移動ボタン（⏫ ⏬ ⏪ ⏩）の追加
+                col_sup, col_sdown, col_sleft, col_sright = st.columns(4)
+                step_3 = 3  # 1回の移動ドット数
+                with col_sup:
+                    if st.button("⏫ 上へ(3)", key=f"sup_{idx}"):
+                        layer["points"][selected_pt_idx][1] -= step_3
+                        st.rerun()
+                with col_sdown:
+                    if st.button("⏬ 下へ(3)", key=f"sdown_{idx}"):
+                        layer["points"][selected_pt_idx][1] += step_3
+                        st.rerun()
+                with col_sleft:
+                    if st.button("⏪ 左へ(3)", key=f"sleft_{idx}"):
+                        layer["points"][selected_pt_idx][0] -= step_3
+                        st.rerun()
+                with col_sright:
+                    if st.button("⏩ 右へ(3)", key=f"sright_{idx}"):
+                        layer["points"][selected_pt_idx][0] += step_3
                         st.rerun()
 
                 st.write("---")
 
+                # 素材変更
                 if os.path.exists(assets_dir):
                     subfolders = [f for f in os.listdir(assets_dir) if os.path.isdir(os.path.join(assets_dir, f))]
                     cur_folder = os.path.basename(os.path.dirname(layer["tex_path"]))
@@ -362,6 +459,7 @@ if uploaded_room is not None:
                     st.caption("現在選択中の素材:")
                     st.image(layer["tex_path"], width=100)
 
+                # パラメータ調整
                 c1, c2 = st.columns(2)
                 with c1:
                     rot_opts = ["標準（縦）", "90度回転（横）", "右斜め（45度）", "左斜め（-45度）"]
@@ -377,16 +475,19 @@ if uploaded_room is not None:
     st.subheader("🖼️ 全体コーディネート完成イメージ")
     st.image(final_output_np, caption="リアルタイム調整後の完成イメージ", use_container_width=True)
 
+    # 使用中の素材品番（ファイル名）＆エリア名一覧表示
     if st.session_state.layers:
         st.markdown("**📋 このイメージで使用中の素材品番（品番: カテゴリ）**")
         for layer in st.session_state.layers:
             filename_with_ext = os.path.basename(layer["tex_path"])
-            filename_no_ext = os.path.splitext(filename_with_ext)[0]
-            category_name = os.path.basename(os.path.dirname(layer["tex_path"]))
-            area_name = layer["name"]
+            filename_no_ext = os.path.splitext(filename_with_ext)[0]  # 品番
+            category_name = os.path.basename(os.path.dirname(layer["tex_path"]))  # カテゴリ
+            area_name = layer["name"]  # エリア名
             
+            # エリア名を灰色の薄文字で表示
             st.markdown(f"- **{filename_no_ext}** ({category_name}) <span style='color: gray; font-size: 0.9em;'>- {area_name}</span>", unsafe_allow_html=True)
 
+    # イメージ保存（ダウンロード）ボタン
     final_pil = Image.fromarray(final_output_np)
     buf = io.BytesIO()
     final_pil.save(buf, format="JPEG", quality=95)
