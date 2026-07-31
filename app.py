@@ -291,7 +291,20 @@ if uploaded_room is not None:
                         st.session_state.layers.pop(idx)
                         st.rerun()
 
-                # --- ★ 点の位置の微調整機能 ---
+                # ★ 編集枠専用の「リアルタイムプレビュー画像」を生成・描画
+                layer_prev_np = render_all_layers(original_np, st.session_state.layers)
+                for i, pt in enumerate(layer["points"]):
+                    cv2.circle(layer_prev_np, (pt[0], pt[1]), 10, (0, 0, 255), -1)  # 赤い丸
+                    cv2.putText(layer_prev_np, str(i + 1), (pt[0] + 15, pt[1] + 15),
+                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+
+                if len(layer["points"]) >= 3:
+                    pts_arr = np.array(layer["points"], np.int32).reshape((-1, 1, 2))
+                    cv2.polylines(layer_prev_np, [pts_arr], isClosed=True, color=(0, 0, 255), thickness=3)
+
+                st.image(layer_prev_np, caption=f"「{layer['name']}」の現在の範囲と合成状態", use_container_width=True)
+
+                # --- 点の位置の微調整機能 ---
                 st.markdown("**🎯 角（ポイント）の位置調整**")
                 pt_labels = [f"点 {i+1}: (X: {pt[0]}, Y: {pt[1]})" for i, pt in enumerate(layer["points"])]
                 selected_pt_idx = st.selectbox("調整したい点を選択", range(len(layer["points"])), format_func=lambda i: pt_labels[i], key=f"pt_sel_{idx}")
