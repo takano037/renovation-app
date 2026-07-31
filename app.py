@@ -348,7 +348,6 @@ if uploaded_room is not None:
                         "repeat_count": rep,
                         "opacity_pct": opac
                     })
-                    # ★ 保存後に選択中の点およびコンポーネント状態を完全にリセット
                     st.session_state.current_points = []
                     st.session_state.main_coords_key += 1
                     st.success(f"「{layer_name}」を追加しました！")
@@ -359,6 +358,29 @@ if uploaded_room is not None:
         st.write("---")
         st.subheader("⚙️ 登録済みエリアの再調整・編集")
         st.caption("保存済みのエリアの柄、向き、透明度、および「角の位置」を修正できます。")
+
+        # ★ 複数一括削除コントロールツールバー
+        col_del1, col_del2 = st.columns([2, 1])
+        with col_del1:
+            selected_to_delete = st.multiselect(
+                "まとめて削除したいエリアを選択",
+                options=list(range(len(st.session_state.layers))),
+                format_func=lambda i: f"エリア {i+1}: {st.session_state.layers[i]['name']}",
+                placeholder="エリアを選択..."
+            )
+            if selected_to_delete:
+                if st.button("🗑️ 選択したエリアをまとめて削除", type="primary"):
+                    # 逆順でインデックスを削除（インデックスずれ防止）
+                    for d_idx in sorted(selected_to_delete, reverse=True):
+                        st.session_state.layers.pop(d_idx)
+                    st.rerun()
+
+        with col_del2:
+            if st.button("⚠️ 全エリアを一括削除", type="secondary", use_container_width=True):
+                st.session_state.layers = []
+                st.rerun()
+
+        st.write("")
 
         for idx, layer in enumerate(st.session_state.layers):
             expander_key = f"expander_state_{idx}"
