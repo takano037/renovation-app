@@ -13,6 +13,13 @@ st.set_page_config(
     layout="centered"
 )
 
+# --- ★ スマホ画面のピンチズーム（拡大・縮小）を許可するHTML設定 ---
+st.markdown("""
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    </head>
+""", unsafe_allow_html=True)
+
 # --- スタイリッシュデザイン（CSS / Google Fonts）の適用 ---
 st.markdown("""
     <style>
@@ -443,7 +450,7 @@ if uploaded_room is not None:
                         layer["points"][selected_pt_idx][1] -= step_3
                         st.rerun()
                 with col_sdown:
-                    if st.button("⏬ 下へ(3)", key=f"sdown_{idx}"):
+                    if st.button("安静 ⏬ 下へ(3)", key=f"sdown_{idx}"):
                         layer["points"][selected_pt_idx][1] += step_3
                         st.rerun()
                 with col_sleft:
