@@ -284,21 +284,18 @@ if uploaded_room is not None:
 
     img_pil_display = Image.fromarray(img_display)
 
-    # スマホはみ出し防止
-    display_max_width = 500
-    disp_w, disp_h = w, h
-    if w > display_max_width:
-        scale = display_max_width / float(w)
-        disp_w = display_max_width
-        disp_h = int(h * scale)
-        img_pil_display = img_pil_display.resize((disp_w, disp_h))
-    else:
-        scale = 1.0
-
-    # キーを動的に変更してエリア追加・リセット後の残存クリックを防ぐ
-    coords = streamlit_image_coordinates(img_pil_display, key=f"pil_coords_{st.session_state.main_coords_key}")
+    # ★ 完成イメージと同様に画面いっぱいのサイズ（全幅表示）に設定
+    coords = streamlit_image_coordinates(
+        img_pil_display, 
+        use_column_width=True, 
+        key=f"pil_coords_{st.session_state.main_coords_key}"
+    )
 
     if coords is not None and len(st.session_state.current_points) < 8:
+        # スケールは表示時のサイズ比率から自動的に内部算出
+        disp_w = coords.get("width", w)
+        scale = float(disp_w) / float(w) if disp_w > 0 else 1.0
+        
         click_x = int(coords["x"] / scale)
         click_y = int(coords["y"] / scale)
         new_pt = [click_x, click_y]
@@ -359,7 +356,7 @@ if uploaded_room is not None:
         st.subheader("⚙️ 登録済みエリアの再調整・編集")
         st.caption("保存済みのエリアの柄、向き、透明度、および「角の位置」を修正できます。")
 
-        # ★ 複数一括削除コントロールツールバー
+        # 複数一括削除コントロールツールバー
         col_del1, col_del2 = st.columns([2, 1])
         with col_del1:
             selected_to_delete = st.multiselect(
@@ -370,7 +367,6 @@ if uploaded_room is not None:
             )
             if selected_to_delete:
                 if st.button("🗑️ 選択したエリアをまとめて削除", type="primary"):
-                    # 逆順でインデックスを削除（インデックスずれ防止）
                     for d_idx in sorted(selected_to_delete, reverse=True):
                         st.session_state.layers.pop(d_idx)
                     st.rerun()
@@ -395,7 +391,7 @@ if uploaded_room is not None:
                         st.session_state.layers.pop(idx)
                         st.rerun()
 
-                # --- 選択中の点だけ赤（Red）、その他を青（Blue）で描き分ける処理 ---
+                # 選択中の点だけ赤（Red）、その他を青（Blue）で描き分ける処理
                 pt_sel_key = f"pt_sel_idx_{idx}"
                 if pt_sel_key not in st.session_state:
                     st.session_state[pt_sel_key] = 0
@@ -403,34 +399,21 @@ if uploaded_room is not None:
 
                 layer_prev_np = render_all_layers(original_np, st.session_state.layers)
                 
-                # 枠線（青）
                 if len(layer["points"]) >= 3:
                     pts_arr = np.array(layer["points"], np.int32).reshape((-1, 1, 2))
                     cv2.polylines(layer_prev_np, [pts_arr], isClosed=True, color=(255, 0, 0), thickness=2)
 
-                # 点の描画（選択中の点のみ赤で強調、その他は青）
                 for i, pt in enumerate(layer["points"]):
                     if i == active_pt_idx:
-                        # 選択中の点: 赤色 (RGB: 255, 0, 0)＆少し大きめ
                         cv2.circle(layer_prev_np, (pt[0], pt[1]), 12, (255, 0, 0), -1)
                         cv2.putText(layer_prev_np, str(i + 1), (pt[0] + 15, pt[1] + 15),
                                     cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 0, 0), 3)
                     else:
-                        # 選択外の点: 青色 (RGB: 0, 0, 255)
                         cv2.circle(layer_prev_np, (pt[0], pt[1]), 8, (0, 0, 255), -1)
                         cv2.putText(layer_prev_np, str(i + 1), (pt[0] + 15, pt[1] + 15),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
                 layer_prev_pil = Image.fromarray(layer_prev_np)
-
-                # スマホ対応リサイズ
-                if w > display_max_width:
-                    scale_edit = display_max_width / float(w)
-                    edit_disp_w = display_max_width
-                    edit_disp_h = int(h * scale_edit)
-                    layer_prev_pil = layer_prev_pil.resize((edit_disp_w, edit_disp_h))
-                else:
-                    scale_edit = 1.0
 
                 # --- 位置調整エリア ---
                 st.markdown("**🎯 角（ポイント）の位置調整**")
@@ -444,9 +427,17 @@ if uploaded_room is not None:
 
                 st.caption(f"💡 赤く強調されている「点 {selected_pt_idx+1}」を移動したい場所を画像上で直接タップするか、下の矢印ボタンで微調整できます。")
 
-                # 画像上での直接タップ検知（ワンタップで大きく移動）
-                edit_coords = streamlit_image_coordinates(layer_prev_pil, key=f"edit_coords_{idx}")
+                # ★ 編集プレビュー画像も全幅表示化
+                edit_coords = streamlit_image_coordinates(
+                    layer_prev_pil, 
+                    use_column_width=True, 
+                    key=f"edit_coords_{idx}"
+                )
+                
                 if edit_coords is not None:
+                    edit_disp_w = edit_coords.get("width", w)
+                    scale_edit = float(edit_disp_w) / float(w) if edit_disp_w > 0 else 1.0
+                    
                     edit_click_x = int(edit_coords["x"] / scale_edit)
                     edit_click_y = int(edit_coords["y"] / scale_edit)
                     new_edit_pt = [edit_click_x, edit_click_y]
@@ -541,7 +532,6 @@ if uploaded_room is not None:
             category_name = os.path.basename(os.path.dirname(layer["tex_path"]))  # カテゴリ
             area_name = layer["name"]  # エリア名
             
-            # エリア名を灰色の薄文字で表示
             st.markdown(f"- **{filename_no_ext}** ({category_name}) <span style='color: gray; font-size: 0.9em;'>- {area_name}</span>", unsafe_allow_html=True)
 
     # イメージ保存（ダウンロード）ボタン
