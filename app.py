@@ -19,7 +19,7 @@ def rotate_image(image, angle):
     rotated = cv2.warpAffine(image, M, (new_w, new_h), borderMode=cv2.BORDER_REFLECT)
     return rotated
 
-st.title("リフォームイメージ作成")
+st.title("🏠 リフォームイメージ作成アプリ")
 st.write("部屋の写真をアップロードして、プリセット素材や手持ちの画像で合成してみましょう。")
 
 # 1. 部屋の写真アップロード
@@ -97,36 +97,51 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            # 5列表示＋ボタンを深緑（モスグリーン）にするCSS
+            # スマホでも1画面に収まるように5列縮小表示＋ボタンを深緑にする強力なCSS
             st.markdown("""
                 <style>
-                div[data-testid="column"] {
-                    width: 19% !important;
-                    flex: 0 0 19% !important;
-                    min-width: 19% !important;
-                }
+                /* モーダル内の横並びブロックをスマホ画面幅で折り返す */
                 div[data-testid="stHorizontalBlock"] {
-                    flex-wrap: nowrap !important;
-                    overflow-x: auto !important;
-                    gap: 0.3rem !important;
+                    flex-wrap: wrap !important;
+                    gap: 0.2rem !important;
                 }
-                /* 通常ボタンを深緑色に指定 */
-                div[data-testid="column"] button {
-                    padding: 3px 0px !important;
-                    font-size: 11px !important;
+                /* 1列あたり18%幅（5列表示） */
+                div[data-testid="column"] {
+                    width: 18% !important;
+                    flex: 0 0 18% !important;
+                    min-width: 18% !important;
+                    padding: 0px !important;
+                }
+                /* 画像の高さを固定して綺麗に並べる */
+                div[data-testid="column"] img {
+                    object-fit: cover !important;
+                    max-height: 60px !important;
+                    border-radius: 4px !important;
+                }
+                /* ギャラリー内の全ボタン（Primary/Secondary問わず）を深緑色に強制固定 */
+                div[data-testid="column"] button,
+                div[data-testid="column"] button[kind="primary"],
+                div[data-testid="column"] button[kind="secondary"] {
+                    padding: 2px 0px !important;
+                    font-size: 10px !important;
                     background-color: #2e5a44 !important;
+                    background: #2e5a44 !important;
                     color: white !important;
                     border: none !important;
+                    border-radius: 4px !important;
+                    min-height: 24px !important;
+                    height: 24px !important;
                 }
-                /* ホバー（押し込み）時 */
+                /* ホバー（タップ時） */
                 div[data-testid="column"] button:hover {
                     background-color: #1f3f2f !important;
                     color: white !important;
                 }
-                /* 選択中（無効化状態）のボタン */
+                /* 選択済み（無効化状態） */
                 div[data-testid="column"] button:disabled {
-                    background-color: #cccccc !important;
-                    color: #666666 !important;
+                    background-color: #e0e0e0 !important;
+                    background: #e0e0e0 !important;
+                    color: #888888 !important;
                 }
                 </style>
             """, unsafe_allow_html=True)
@@ -176,7 +191,8 @@ if uploaded_room is not None:
                     if first_file:
                         st.session_state.selected_preset_path = os.path.relpath(os.path.join(target_folder_path, first_file[0]), "assets")
 
-                if st.button("🖼️ 素材ギャラリー（一覧）を開く", type="primary"):
+                # 「素材ギャラリーを開く」メインボタン自体も深緑（緑）ボタンに変更
+                if st.button("🖼️ 素材ギャラリー（一覧）を開く"):
                     open_material_gallery(target_folder_path)
 
                 if "selected_preset_path" in st.session_state:
@@ -219,7 +235,7 @@ if uploaded_room is not None:
 
     # 4. 合成処理
     if len(st.session_state.points) >= 3 and tex_img is not None:
-        if st.button("イメージを合成する", type="primary"):
+        if st.button("イメージを合成する"):
             pts_cnt = len(st.session_state.points)
 
             # 向き調整（回転処理）
