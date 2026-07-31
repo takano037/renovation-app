@@ -83,13 +83,11 @@ if uploaded_room is not None:
             preset_files = sorted([f for f in os.listdir(assets_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
 
         if preset_files:
-            # セッションステートで現在選択されているファイルを管理
             if "selected_preset" not in st.session_state or st.session_state.selected_preset not in preset_files:
                 st.session_state.selected_preset = preset_files[0]
 
             st.write("▼ 画像一覧から使用したい素材をタップしてください：")
             
-            # スマホでも見やすいように3列のグリッドで一覧表示
             cols_per_row = 3
             for i in range(0, len(preset_files), cols_per_row):
                 cols = st.columns(cols_per_row)
@@ -98,21 +96,18 @@ if uploaded_room is not None:
                         filename = preset_files[i + j]
                         file_path = os.path.join(assets_dir, filename)
                         
-                        # 画像読み込み
                         img_thumb = Image.open(file_path)
                         img_thumb = ImageOps.exif_transpose(img_thumb)
                         
                         with cols[j]:
                             st.image(img_thumb, use_container_width=True)
                             
-                            # 選択ボタン
                             is_selected = (filename == st.session_state.selected_preset)
                             btn_label = "✅ 選択中" if is_selected else "選択する"
                             if st.button(btn_label, key=f"btn_{filename}", disabled=is_selected):
                                 st.session_state.selected_preset = filename
                                 st.rerun()
 
-            # 現在選択されている画像の読み込み
             selected_file_path = os.path.join(assets_dir, st.session_state.selected_preset)
             preset_pil = Image.open(selected_file_path)
             preset_pil = ImageOps.exif_transpose(preset_pil)
@@ -136,21 +131,31 @@ if uploaded_room is not None:
             tex_img = custom_np
             st.success("カスタム素材画像を使用します！")
 
-    # 3. 合成処理
+    # --- 3. 素材の模様（縮小・リピート）サイズ設定 ---
+    st.subheader("3. 模様のサイズ（縮小倍率）調整")
+    repeat_count = st.slider("柄の細かさ（リピート回数）", min_value=1, max_value=8, value=3, help="数字を大きくすると素材が縮小され、柄が細かくなります。")
+
+    # 4. 合成処理
     if len(st.session_state.points) >= 3:
         if st.button("イメージを合成する"):
             pts_cnt = len(st.session_state.points)
+
+            # 素材画像を縮小して敷き詰める（タイリング処理）
+            if repeat_count > 1:
+                tex_tiled = np.tile(tex_img, (repeat_count, repeat_count, 1))
+            else:
+                tex_tiled = tex_img
 
             # 遠近変換またはタイリング
             if pts_cnt == 4:
                 pts1 = np.float32([[0, 0], [400, 0], [400, 400], [0, 400]])
                 pts2 = np.float32(st.session_state.points)
-                tex_resized = cv2.resize(tex_img, (400, 400))
+                tex_resized = cv2.resize(tex_tiled, (400, 400))
                 matrix = cv2.getPerspectiveTransform(pts1, pts2)
                 warped_texture = cv2.warpPerspective(tex_resized, matrix, (w, h))
             else:
-                th, tw, _ = tex_img.shape
-                warped_texture = np.tile(tex_img, (h // th + 1, w // tw + 1, 1))[:h, :w]
+                th, tw, _ = tex_tiled.shape
+                warped_texture = np.tile(tex_tiled, (h // th + 1, w // tw + 1, 1))[:h, :w]
 
             # ナチュラル陰影ブレンド
             gray_orig = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY).astype(float) / 255.0
