@@ -239,6 +239,8 @@ if "layers" not in st.session_state:
     st.session_state.layers = []  # 各エリアのレイヤー保存用
 if "current_points" not in st.session_state:
     st.session_state.current_points = []
+if "main_coords_key" not in st.session_state:
+    st.session_state.main_coords_key = 0  # 画像コンポーネントを強制リセットするためのキー
 
 # 1. 部屋の写真アップロード
 uploaded_room = st.file_uploader("部屋の写真をアップロード", type=["jpg", "jpeg", "png"])
@@ -255,6 +257,7 @@ if uploaded_room is not None:
     if st.session_state.get("last_uploaded") != uploaded_room.name:
         st.session_state.layers = []
         st.session_state.current_points = []
+        st.session_state.main_coords_key = 0
         st.session_state.last_uploaded = uploaded_room.name
 
     st.subheader("1. 張り替えエリアの選択")
@@ -262,6 +265,7 @@ if uploaded_room is not None:
 
     if st.button("選択中のタップ点をリセット"):
         st.session_state.current_points = []
+        st.session_state.main_coords_key += 1
         st.rerun()
 
     # 現在のレイヤー群を重ね合わせた状態の画像を準備
@@ -291,7 +295,8 @@ if uploaded_room is not None:
     else:
         scale = 1.0
 
-    coords = streamlit_image_coordinates(img_pil_display, key="pil_coords")
+    # キーを動的に変更してエリア追加・リセット後の残存クリックを防ぐ
+    coords = streamlit_image_coordinates(img_pil_display, key=f"pil_coords_{st.session_state.main_coords_key}")
 
     if coords is not None and len(st.session_state.current_points) < 8:
         click_x = int(coords["x"] / scale)
@@ -343,7 +348,9 @@ if uploaded_room is not None:
                         "repeat_count": rep,
                         "opacity_pct": opac
                     })
+                    # ★ 保存後に選択中の点およびコンポーネント状態を完全にリセット
                     st.session_state.current_points = []
+                    st.session_state.main_coords_key += 1
                     st.success(f"「{layer_name}」を追加しました！")
                     st.rerun()
 
@@ -366,7 +373,7 @@ if uploaded_room is not None:
                         st.session_state.layers.pop(idx)
                         st.rerun()
 
-                # --- ★ 選択中の点だけ赤（Red）、その他を青（Blue）で描き分ける処理 ---
+                # --- 選択中の点だけ赤（Red）、その他を青（Blue）で描き分ける処理 ---
                 pt_sel_key = f"pt_sel_idx_{idx}"
                 if pt_sel_key not in st.session_state:
                     st.session_state[pt_sel_key] = 0
