@@ -20,30 +20,47 @@ def rotate_image(image, angle):
     return rotated
 
 st.title("リフォームイメージ作成")
-st.write("部屋の写真をアップロードして、プリセット素材や手持ちの画像で合成してみましょう。")
+st.write("部屋の写真をアップロードして、床・壁・天井などを順番に張り替えてみましょう。")
+
+# --- セッション状態の初期化 ---
+if "base_image_np" not in st.session_state:
+    st.session_state.base_image_np = None
+if "points" not in st.session_state:
+    st.session_state.points = []
 
 # 1. 部屋の写真アップロード
 uploaded_room = st.file_uploader("部屋の写真をアップロード", type=["jpg", "jpeg", "png"])
 
 if uploaded_room is not None:
+    # 新しい画像が上がったらベース画像をセット
     room_img = Image.open(uploaded_room)
     room_img = ImageOps.exif_transpose(room_img)
-    
     max_size = 1000
     room_img.thumbnail((max_size, max_size))
     
-    img_np = np.array(room_img)
+    current_upload_np = np.array(room_img)
+    
+    if st.session_state.base_image_np is None or st.session_state.get("last_uploaded") != uploaded_room.name:
+        st.session_state.base_image_np = current_upload_np.copy()
+        st.session_state.last_uploaded = uploaded_room.name
+        st.session_state.points = []
+
+    img_np = st.session_state.base_image_np
     h, w, _ = img_np.shape
 
-    st.subheader("1. 張り替えるエリア（床または壁）の角をタップ（4箇所推奨）")
+    st.subheader("1. 張り替えるエリア（床、壁、天井など）の角をタップ（4箇所推奨）")
     st.write("時計回りに角をタップしてください（※4点指定が最も綺麗にパース変形されます）。")
 
-    if "points" not in st.session_state:
-        st.session_state.points = []
-
-    if st.button("選択した点をリセット"):
-        st.session_state.points = []
-        st.rerun()
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        if st.button("選択した点をリセット"):
+            st.session_state.points = []
+            st.rerun()
+    with col_btn2:
+        if st.button("🔄 最初の上書き前の写真に戻す"):
+            st.session_state.base_image_np = current_upload_np.copy()
+            st.session_state.points = []
+            st.rerun()
 
     # ガイド描画
     img_display = img_np.copy()
@@ -97,7 +114,6 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            # ズーム状態でも5列を維持し、ボタンを深緑に保つ強固なCSS
             st.markdown("""
                 <style>
                 div[data-testid="stHorizontalBlock"] {
@@ -117,7 +133,6 @@ if uploaded_room is not None:
                     object-fit: cover !important;
                     border-radius: 4px !important;
                 }
-                /* 通常ボタンを深緑色に指定 */
                 div[data-testid="column"] button,
                 div[data-testid="column"] button[kind="primary"],
                 div[data-testid="column"] button[kind="secondary"] {
@@ -230,7 +245,7 @@ if uploaded_room is not None:
 
     # 4. 合成処理
     if len(st.session_state.points) >= 3 and tex_img is not None:
-        if st.button("イメージを合成する"):
+        if st.button("このエリアを合成する", type="primary"):
             pts_cnt = len(st.session_state.points)
 
             # 向き調整（回転処理）
@@ -241,7 +256,7 @@ if uploaded_room is not None:
             elif rotation_opt == "左斜め（-45度）":
                 tex_img = rotate_image(tex_img, 45)
 
-            # 素材画像を縮小して敷き詰める（タイリング処理）
+            # タイリング処理
             if repeat_count > 1:
                 tex_tiled = np.tile(tex_img, (repeat_count, repeat_count, 1))
             else:
@@ -273,7 +288,18 @@ if uploaded_room is not None:
             img_result = img_np.copy()
             img_result[mask == 255] = blended_texture[mask == 255]
 
-            st.success("合成が完了しました！")
-            st.image(img_result, caption="リフォーム後イメージ", use_container_width=True)
+            # 合成後の画像を「新しいベース画像」として更新し、タップポイントをクリア
+            st.session_state.base_image_np = img_result
+            st.session_state.points = []
+
+            st.success("合成が完了しました！続けて別のエリア（壁・天井など）を選択できます。")
+            st.rerun()
+
     else:
         st.info("画像上の角を3箇所以上タップすると、合成ボタンが有効化されます。")
+
+    # 現在の合成済みプレビュー表示
+    if st.session_state.base_image_np is not None:
+        st.write("---")
+        st.subheader("🖼️ 現在のリフォーム完成イメージ")
+        st.image(st.session_state.base_image_np, caption="現在の合成結果（この上に続けて別のエリアを合成できます）", use_container_width=True)
