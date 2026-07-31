@@ -72,43 +72,56 @@ if uploaded_room is not None:
     # 2. 素材の選択方式
     st.subheader("2. 張り替える素材を選択")
     
-    tab1, tab2 = st.tabs(["① プリセット素材から選ぶ", "② 画像を直接アップロード"])
+    tab1, tab2 = st.tabs(["① 画像一覧（ギャラリー）から選ぶ", "② 画像を直接アップロード"])
     
     tex_img = None
 
     with tab1:
         assets_dir = "assets"
-        
-        # --- ファイル名と表示名の対応表（ここに追加していきます） ---
-        NAME_MAP = {
-            "SGM1322_C01.jpg": "サンゲツ：ホワイト織物調クロス (SGM1322)",
-            # 新しい素材を追加したらここに追加できます
-            # "oak.jpg": "オークフローリング（ナチュラル）",
-        }
-
         preset_files = []
         if os.path.exists(assets_dir):
-            preset_files = [f for f in os.listdir(assets_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+            preset_files = sorted([f for f in os.listdir(assets_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
 
         if preset_files:
-            # 表示名からファイル名を取得できるように逆引きマップを作成
-            display_options = [NAME_MAP.get(f, f) for f in preset_files]
-            display_to_filename = {NAME_MAP.get(f, f): f for f in preset_files}
+            # セッションステートで現在選択されているファイルを管理
+            if "selected_preset" not in st.session_state or st.session_state.selected_preset not in preset_files:
+                st.session_state.selected_preset = preset_files[0]
 
-            selected_display_name = st.selectbox("登録済みプリセット画像", display_options)
-            selected_file = display_to_filename[selected_display_name]
+            st.write("▼ 画像一覧から使用したい素材をタップしてください：")
             
-            file_path = os.path.join(assets_dir, selected_file)
-            
-            preset_pil = Image.open(file_path)
+            # スマホでも見やすいように3列のグリッドで一覧表示
+            cols_per_row = 3
+            for i in range(0, len(preset_files), cols_per_row):
+                cols = st.columns(cols_per_row)
+                for j in range(cols_per_row):
+                    if i + j < len(preset_files):
+                        filename = preset_files[i + j]
+                        file_path = os.path.join(assets_dir, filename)
+                        
+                        # 画像読み込み
+                        img_thumb = Image.open(file_path)
+                        img_thumb = ImageOps.exif_transpose(img_thumb)
+                        
+                        with cols[j]:
+                            st.image(img_thumb, use_container_width=True)
+                            
+                            # 選択ボタン
+                            is_selected = (filename == st.session_state.selected_preset)
+                            btn_label = "✅ 選択中" if is_selected else "選択する"
+                            if st.button(btn_label, key=f"btn_{filename}", disabled=is_selected):
+                                st.session_state.selected_preset = filename
+                                st.rerun()
+
+            # 現在選択されている画像の読み込み
+            selected_file_path = os.path.join(assets_dir, st.session_state.selected_preset)
+            preset_pil = Image.open(selected_file_path)
             preset_pil = ImageOps.exif_transpose(preset_pil)
             preset_np = np.array(preset_pil)
             if preset_np.shape[2] == 4:
                 preset_np = cv2.cvtColor(preset_np, cv2.COLOR_RGBA2RGB)
             tex_img = preset_np
-            
-            # サムネイル表示
-            st.image(preset_pil, caption=f"選択中: {selected_display_name}", width=150)
+
+            st.success(f"現在選択中のプリセット: **{st.session_state.selected_preset}**")
         else:
             st.warning("`assets` フォルダに画像がまだありません。")
 
