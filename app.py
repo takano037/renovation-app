@@ -1,12 +1,9 @@
 import os
-import urllib.request
 import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image, ImageOps
 import io  # 画像ダウンロード用
-import torch
-from segment_anything import sam_model_registry, SamPredictor
 from streamlit_image_coordinates import streamlit_image_coordinates
 
 # ページ基本設定
@@ -66,22 +63,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
-# --- SAM AIモデルのダウンロードと読み込み（キャッシュ化） ---
-@st.cache_resource
-def load_sam_model():
-    checkpoint_url = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth"
-    checkpoint_path = "sam_vit_b_01ec64.pth"
-    
-    if not os.path.exists(checkpoint_path):
-        with st.spinner("🤖 AIモデルを初期ダウンロード中...（初回のみ数十秒かかります）"):
-            urllib.request.urlretrieve(checkpoint_url, checkpoint_path)
-            
-    model_type = "vit_b"
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    sam = sam_model_registry[model_type](checkpoint=checkpoint_path)
-    sam.to(device=device)
-    return SamPredictor(sam)
 
 # 画像を任意の角度で回転（黒枠が出ないようにクロップ）する関数
 def rotate_image(image, angle):
@@ -203,13 +184,13 @@ def open_material_gallery(folder_path, state_key_to_set):
 
 # --- タイトル表示 ---
 st.markdown('<div class="main-title">RoomSimulator</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">AI面認識 ＆ インタラクティブ・リフォームシミュレーター</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">部屋の写真に建材・壁紙・床材をインタラクティブにシミュレーション</div>', unsafe_allow_html=True)
 
 assets_dir = "assets"
 
 # --- セッション状態の初期化 ---
 if "layers" not in st.session_state:
-    st.session_state.layers = []
+    st.session_state.layers = []  # 各エリアのレイヤー保存用
 if "current_points" not in st.session_state:
     st.session_state.current_points = []
 
@@ -231,17 +212,15 @@ if uploaded_room is not None:
         st.session_state.last_uploaded = uploaded_room.name
 
     st.subheader("1. 張り替えエリアの選択")
+    st.caption("角を順にタップしてエリアを指定してください（4箇所推奨、最大8点）。")
 
-    # 指定モードの選択（AI自動検出 vs 手動ピン留め）
-    select_mode = st.radio("選択モード", ["🤖 AIで面を自動検出（1タップ）", "📌 手動で角を指定（最大8点）"], horizontal=True)
-
-    if st.button("選択中のエリアをリセット"):
+    if st.button("選択中のタップ点をリセット"):
         st.session_state.current_points = []
         st.rerun()
 
     current_combined_np = render_all_layers(original_np, st.session_state.layers)
-    img_display = current_combined_np.copy()
 
+    img_display = current_combined_np.copy()
     for i, pt in enumerate(st.session_state.current_points):
         cv2.circle(img_display, (pt[0], pt[1]), 10, (255, 0, 0), -1)
         cv2.putText(img_display, str(i + 1), (pt[0] + 15, pt[1] + 15),
@@ -254,6 +233,7 @@ if uploaded_room is not None:
     img_pil_display = Image.fromarray(img_display)
 
     display_max_width = 500
+    disp_w, disp_h = w, h
     if w > display_max_width:
         scale = display_max_width / float(w)
         disp_w = display_max_width
@@ -264,48 +244,15 @@ if uploaded_room is not None:
 
     coords = streamlit_image_coordinates(img_pil_display, key="pil_coords")
 
-    if coords is not None:
+    if coords is not None and len(st.session_state.current_points) < 8:
         click_x = int(coords["x"] / scale)
         click_y = int(coords["y"] / scale)
+        new_pt = [click_x, click_y]
+        if not st.session_state.current_points or st.session_state.current_points[-1] != new_pt:
+            st.session_state.current_points.append(new_pt)
+            st.rerun()
 
-        if "🤖 AIで面を自動検出" in select_mode:
-            # AI (SAM) による自動面抽出
-            sam_predictor = load_sam_model()
-            sam_predictor.set_image(original_np)
-            
-            input_point = np.array([[click_x, click_y]])
-            input_label = np.array([1])
-            
-            masks, scores, _ = sam_predictor.predict(
-                point_coords=input_point,
-                point_labels=input_label,
-                multimask_output=False,
-            )
-            
-            # マスクの輪郭（コンター）から角（ポイント）を自動抽出
-            mask_uint8 = (masks[0] * 255).astype(np.uint8)
-            contours, _ = cv2.findContours(mask_uint8, cv2.RETRATION_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            
-            if contours:
-                c = max(contours, key=cv2.contourArea)
-                epsilon = 0.02 * cv2.arcLength(c, True)
-                approx = cv2.approxPolyDP(c, epsilon, True)
-                
-                ai_pts = [pt[0].tolist() for pt in approx]
-                if len(ai_pts) >= 3:
-                    st.session_state.current_points = ai_pts
-                    st.success("🤖 AIが面を認識しました！")
-                    st.rerun()
-
-        else:
-            # 手動ピン留めモード
-            if len(st.session_state.current_points) < 8:
-                new_pt = [click_x, click_y]
-                if not st.session_state.current_points or st.session_state.current_points[-1] != new_pt:
-                    st.session_state.current_points.append(new_pt)
-                    st.rerun()
-
-    st.write(f"現在選択された点の数: {len(st.session_state.current_points)}")
+    st.write(f"現在選択された点の数: {len(st.session_state.current_points)} / 8")
 
     # 新規レイヤー追加エリア
     if len(st.session_state.current_points) >= 3:
