@@ -1,9 +1,12 @@
 import os
+import urllib.request
 import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image, ImageOps
 import io  # 画像ダウンロード用
+import torch
+from segment_anything import sam_model_registry, SamPredictor
 from streamlit_image_coordinates import streamlit_image_coordinates
 
 # ページ基本設定
@@ -18,13 +21,11 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
 
-    /* 全体フォント適用 */
     html, body, [class*="css"], div[data-testid="stAppViewContainer"] {
         font-family: 'Inter', 'Noto Sans JP', sans-serif !important;
         letter-spacing: -0.01em;
     }
 
-    /* メインタイトルデザイン */
     .main-title {
         font-family: 'Inter', sans-serif;
         font-size: 2.2rem;
@@ -41,7 +42,6 @@ st.markdown("""
         font-weight: 500;
     }
 
-    /* アコーディオン・見出しデザインの洗練 */
     div[data-testid="stExpander"] {
         border-radius: 8px !important;
         border: 1px solid #e2e8f0 !important;
@@ -49,7 +49,6 @@ st.markdown("""
         background-color: #fafafa !important;
     }
 
-    /* ダウンロードボタンのデザイン */
     div[data-testid="stDownloadButton"] button {
         background-color: #2e5a44 !important;
         background: #2e5a44 !important;
@@ -67,6 +66,22 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+# --- SAM AIモデルのダウンロードと読み込み（キャッシュ化） ---
+@st.cache_resource
+def load_sam_model():
+    checkpoint_url = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth"
+    checkpoint_path = "sam_vit_b_01ec64.pth"
+    
+    if not os.path.exists(checkpoint_path):
+        with st.spinner("🤖 AIモデルを初期ダウンロード中...（初回のみ数十秒かかります）"):
+            urllib.request.urlretrieve(checkpoint_url, checkpoint_path)
+            
+    model_type = "vit_b"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    sam = sam_model_registry[model_type](checkpoint=checkpoint_path)
+    sam.to(device=device)
+    return SamPredictor(sam)
 
 # 画像を任意の角度で回転（黒枠が出ないようにクロップ）する関数
 def rotate_image(image, angle):
@@ -108,7 +123,7 @@ def process_layer(base_img, points, tex_path, rotation_opt, repeat_count, opacit
     else:
         tex_tiled = tex_np
 
-    # 変形（BORDER_WRAP を指定して端に黒枠が混ざるのを完全に防止）
+    # 変形
     pts_cnt = len(points)
     if pts_cnt == 4:
         pts1 = np.float32([[0, 0], [400, 0], [400, 400], [0, 400]])
@@ -126,7 +141,7 @@ def process_layer(base_img, points, tex_path, rotation_opt, repeat_count, opacit
     shadow_map = np.dstack([shadow_map, shadow_map, shadow_map])
     blended_texture = (warped_texture.astype(float) * shadow_map).clip(0, 255).astype(np.uint8)
 
-    # マスク作成（アンチエイリアス処理による黒フチを回避するため二値化固定）
+    # マスク作成
     alpha = opacity_pct / 100.0
     mask = np.zeros((h, w), dtype=np.uint8)
     pts_array = np.array([points], dtype=np.int32)
@@ -161,44 +176,10 @@ def open_material_gallery(folder_path, state_key_to_set):
     if files:
         st.markdown("""
             <style>
-            div[data-testid="stHorizontalBlock"] {
-                display: flex !important;
-                flex-direction: row !important;
-                flex-wrap: nowrap !important;
-                gap: 0.2rem !important;
-            }
-            div[data-testid="column"] {
-                width: 19% !important;
-                flex: 0 0 19% !important;
-                min-width: 19% !important;
-                padding: 0px !important;
-            }
-            div[data-testid="column"] img {
-                height: 55px !important;
-                object-fit: cover !important;
-                border-radius: 4px !important;
-            }
-            div[data-testid="column"] button,
-            div[data-testid="column"] button[kind="primary"],
-            div[data-testid="column"] button[kind="secondary"] {
-                padding: 2px 0px !important;
-                font-size: 10px !important;
-                background-color: #2e5a44 !important;
-                background: #2e5a44 !important;
-                color: white !important;
-                border: none !important;
-                border-radius: 3px !important;
-                min-height: 22px !important;
-                height: 22px !important;
-            }
-            div[data-testid="column"] button:hover {
-                background-color: #1f3f2f !important;
-                color: white !important;
-            }
-            div[data-testid="column"] button:disabled {
-                background-color: #e0e0e0 !important;
-                color: #888888 !important;
-            }
+            div[data-testid="stHorizontalBlock"] { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; gap: 0.2rem !important; }
+            div[data-testid="column"] { width: 19% !important; flex: 0 0 19% !important; min-width: 19% !important; padding: 0px !important; }
+            div[data-testid="column"] img { height: 55px !important; object-fit: cover !important; border-radius: 4px !important; }
+            div[data-testid="column"] button { padding: 2px 0px !important; font-size: 10px !important; background-color: #2e5a44 !important; color: white !important; border: none !important; border-radius: 3px !important; min-height: 22px !important; height: 22px !important; }
             </style>
         """, unsafe_allow_html=True)
 
@@ -219,18 +200,16 @@ def open_material_gallery(folder_path, state_key_to_set):
                         if st.button(btn_label, key=f"dialog_btn_{file_path}_{state_key_to_set}", disabled=is_selected, use_container_width=True):
                             st.session_state[state_key_to_set] = file_path
                             st.rerun()
-    else:
-        st.warning("このフォルダには画像がありません。")
 
 # --- タイトル表示 ---
 st.markdown('<div class="main-title">RoomSimulator</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">部屋の写真に建材・壁紙・床材をインタラクティブにシミュレーション</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">AI面認識 ＆ インタラクティブ・リフォームシミュレーター</div>', unsafe_allow_html=True)
 
 assets_dir = "assets"
 
 # --- セッション状態の初期化 ---
 if "layers" not in st.session_state:
-    st.session_state.layers = []  # 各エリアのレイヤー保存用
+    st.session_state.layers = []
 if "current_points" not in st.session_state:
     st.session_state.current_points = []
 
@@ -252,17 +231,17 @@ if uploaded_room is not None:
         st.session_state.last_uploaded = uploaded_room.name
 
     st.subheader("1. 張り替えエリアの選択")
-    st.caption("角を順にタップしてエリアを指定してください（4箇所推奨）。")
 
-    if st.button("選択中のタップ点をリセット"):
+    # 指定モードの選択（AI自動検出 vs 手動ピン留め）
+    select_mode = st.radio("選択モード", ["🤖 AIで面を自動検出（1タップ）", "📌 手動で角を指定（最大8点）"], horizontal=True)
+
+    if st.button("選択中のエリアをリセット"):
         st.session_state.current_points = []
         st.rerun()
 
-    # 現在のレイヤー群を重ね合わせた状態の画像を準備
     current_combined_np = render_all_layers(original_np, st.session_state.layers)
-
-    # タップ用の点描画
     img_display = current_combined_np.copy()
+
     for i, pt in enumerate(st.session_state.current_points):
         cv2.circle(img_display, (pt[0], pt[1]), 10, (255, 0, 0), -1)
         cv2.putText(img_display, str(i + 1), (pt[0] + 15, pt[1] + 15),
@@ -274,9 +253,7 @@ if uploaded_room is not None:
 
     img_pil_display = Image.fromarray(img_display)
 
-    # スマホはみ出し防止
     display_max_width = 500
-    disp_w, disp_h = w, h
     if w > display_max_width:
         scale = display_max_width / float(w)
         disp_w = display_max_width
@@ -287,16 +264,48 @@ if uploaded_room is not None:
 
     coords = streamlit_image_coordinates(img_pil_display, key="pil_coords")
 
-    # ★ 上限を 8 点に拡張
-    if coords is not None and len(st.session_state.current_points) < 8:
+    if coords is not None:
         click_x = int(coords["x"] / scale)
         click_y = int(coords["y"] / scale)
-        new_pt = [click_x, click_y]
-        if not st.session_state.current_points or st.session_state.current_points[-1] != new_pt:
-            st.session_state.current_points.append(new_pt)
-            st.rerun()
 
-    st.write(f"現在選択された点の数: {len(st.session_state.current_points)} / 8")
+        if "🤖 AIで面を自動検出" in select_mode:
+            # AI (SAM) による自動面抽出
+            sam_predictor = load_sam_model()
+            sam_predictor.set_image(original_np)
+            
+            input_point = np.array([[click_x, click_y]])
+            input_label = np.array([1])
+            
+            masks, scores, _ = sam_predictor.predict(
+                point_coords=input_point,
+                point_labels=input_label,
+                multimask_output=False,
+            )
+            
+            # マスクの輪郭（コンター）から角（ポイント）を自動抽出
+            mask_uint8 = (masks[0] * 255).astype(np.uint8)
+            contours, _ = cv2.findContours(mask_uint8, cv2.RETRATION_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            if contours:
+                c = max(contours, key=cv2.contourArea)
+                epsilon = 0.02 * cv2.arcLength(c, True)
+                approx = cv2.approxPolyDP(c, epsilon, True)
+                
+                ai_pts = [pt[0].tolist() for pt in approx]
+                if len(ai_pts) >= 3:
+                    st.session_state.current_points = ai_pts
+                    st.success("🤖 AIが面を認識しました！")
+                    st.rerun()
+
+        else:
+            # 手動ピン留めモード
+            if len(st.session_state.current_points) < 8:
+                new_pt = [click_x, click_y]
+                if not st.session_state.current_points or st.session_state.current_points[-1] != new_pt:
+                    st.session_state.current_points.append(new_pt)
+                    st.rerun()
+
+    st.write(f"現在選択された点の数: {len(st.session_state.current_points)}")
 
     # 新規レイヤー追加エリア
     if len(st.session_state.current_points) >= 3:
@@ -310,14 +319,12 @@ if uploaded_room is not None:
             target_path = os.path.join(assets_dir, selected_folder)
             files = sorted([f for f in os.listdir(target_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
             if files:
-                # デフォルトの選択画像をセット
                 if "new_selected_tex_path" not in st.session_state or not os.path.exists(st.session_state.new_selected_tex_path):
                     st.session_state.new_selected_tex_path = os.path.join(target_path, files[0])
 
                 if st.button("🖼️ 素材ギャラリー（一覧）を開く", key="btn_open_gallery_new"):
                     open_material_gallery(target_path, "new_selected_tex_path")
 
-                # 現在選択中の素材プレビュー
                 if os.path.exists(st.session_state.new_selected_tex_path):
                     st.caption("現在選択中の素材:")
                     st.image(st.session_state.new_selected_tex_path, width=100)
@@ -342,24 +349,20 @@ if uploaded_room is not None:
                     st.success(f"「{layer_name}」を追加しました！")
                     st.rerun()
 
-    # --- 登録済みエリアの調整・編集エリア ---
+    # 登録済みエリアの調整・編集
     if st.session_state.layers:
         st.write("---")
         st.subheader("⚙️ 登録済みエリアの再調整・編集")
-        st.caption("保存済みのエリアの柄、向き、透明度、および「角の位置」を修正できます。")
 
         for idx, layer in enumerate(st.session_state.layers):
             with st.expander(f"📍 エリア {idx+1}: {layer['name']}", expanded=False):
-                c_del, _ = st.columns([1, 3])
-                with c_del:
-                    if st.button(f"🗑️ このエリアを削除", key=f"del_{idx}"):
-                        st.session_state.layers.pop(idx)
-                        st.rerun()
+                if st.button(f"🗑️ このエリアを削除", key=f"del_{idx}"):
+                    st.session_state.layers.pop(idx)
+                    st.rerun()
 
-                # ★ 編集枠専用の「リアルタイムプレビュー画像」を生成・描画
                 layer_prev_np = render_all_layers(original_np, st.session_state.layers)
                 for i, pt in enumerate(layer["points"]):
-                    cv2.circle(layer_prev_np, (pt[0], pt[1]), 10, (0, 0, 255), -1)  # 赤い丸
+                    cv2.circle(layer_prev_np, (pt[0], pt[1]), 10, (0, 0, 255), -1)
                     cv2.putText(layer_prev_np, str(i + 1), (pt[0] + 15, pt[1] + 15),
                                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
 
@@ -369,13 +372,12 @@ if uploaded_room is not None:
 
                 st.image(layer_prev_np, caption=f"「{layer['name']}」の現在の範囲と合成状態", use_container_width=True)
 
-                # --- 点の位置の微調整機能 ---
                 st.markdown("**🎯 角（ポイント）の位置調整**")
                 pt_labels = [f"点 {i+1}: (X: {pt[0]}, Y: {pt[1]})" for i, pt in enumerate(layer["points"])]
                 selected_pt_idx = st.selectbox("調整したい点を選択", range(len(layer["points"])), format_func=lambda i: pt_labels[i], key=f"pt_sel_{idx}")
 
                 col_up, col_down, col_left, col_right = st.columns(4)
-                step = 10  # 1回の移動ドット数
+                step = 10
                 with col_up:
                     if st.button("⬆️ 上へ", key=f"up_{idx}"):
                         layer["points"][selected_pt_idx][1] -= step
@@ -395,7 +397,6 @@ if uploaded_room is not None:
 
                 st.write("---")
 
-                # 素材変更
                 if os.path.exists(assets_dir):
                     subfolders = [f for f in os.listdir(assets_dir) if os.path.isdir(os.path.join(assets_dir, f))]
                     cur_folder = os.path.basename(os.path.dirname(layer["tex_path"]))
@@ -414,7 +415,6 @@ if uploaded_room is not None:
                     st.caption("現在選択中の素材:")
                     st.image(layer["tex_path"], width=100)
 
-                # パラメータ調整
                 c1, c2 = st.columns(2)
                 with c1:
                     rot_opts = ["標準（縦）", "90度回転（横）", "右斜め（45度）", "左斜め（-45度）"]
@@ -424,25 +424,22 @@ if uploaded_room is not None:
 
                 layer["opacity_pct"] = st.slider("不透明度(%)", 10, 100, layer["opacity_pct"], 5, key=f"opac_{idx}")
 
-    # --- 3. 最終プレビューと品番表示・保存ボタン ---
+    # 最終プレビュー表示
     final_output_np = render_all_layers(original_np, st.session_state.layers)
     st.write("---")
     st.subheader("🖼️ 全体コーディネート完成イメージ")
     st.image(final_output_np, caption="リアルタイム調整後の完成イメージ", use_container_width=True)
 
-    # --- 使用中の素材品番（ファイル名）＆エリア名一覧表示 ---
     if st.session_state.layers:
         st.markdown("**📋 このイメージで使用中の素材品番（品番: カテゴリ）**")
         for layer in st.session_state.layers:
             filename_with_ext = os.path.basename(layer["tex_path"])
-            filename_no_ext = os.path.splitext(filename_with_ext)[0]  # 品番
-            category_name = os.path.basename(os.path.dirname(layer["tex_path"]))  # カテゴリ
-            area_name = layer["name"]  # エリア名
+            filename_no_ext = os.path.splitext(filename_with_ext)[0]
+            category_name = os.path.basename(os.path.dirname(layer["tex_path"]))
+            area_name = layer["name"]
             
-            # エリア名を灰色の薄文字で表示
             st.markdown(f"- **{filename_no_ext}** ({category_name}) <span style='color: gray; font-size: 0.9em;'>- {area_name}</span>", unsafe_allow_html=True)
 
-    # --- イメージ保存（ダウンロード）ボタン ---
     final_pil = Image.fromarray(final_output_np)
     buf = io.BytesIO()
     final_pil.save(buf, format="JPEG", quality=95)
