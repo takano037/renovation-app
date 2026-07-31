@@ -97,25 +97,28 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            # Streamlitのレスポンシブ縦崩れを物理的に無効化するCSS
+            # Streamlitのレスポンシブ縦崩れを完全に無効化し、5列Gridを構築するCSS
             st.markdown("""
                 <style>
                 /* モーダル枠のパディング最小化 */
                 div[data-testid="stDialog"] div[role="dialog"] {
                     padding: 12px !important;
                 }
-                /* Streamlit標準の列解体ルールをCSS Gridで上書き */
+                
+                /* st.columns を使わず HTML Grid で5列を強制 */
                 .custom-gallery-container {
                     display: grid !important;
                     grid-template-columns: repeat(5, 1fr) !important;
                     gap: 6px !important;
                     width: 100% !important;
+                    margin-bottom: 10px;
                 }
-                /* スマホ縦画面（600px以下）のときは3列で強制固定 */
+                
+                /* スマホ縦画面（600px以下）でも5列で強制固定 */
                 @media (max-width: 600px) {
                     .custom-gallery-container {
-                        grid-template-columns: repeat(3, 1fr) !important;
-                        gap: 4px !important;
+                        grid-template-columns: repeat(5, 1fr) !important;
+                        gap: 3px !important;
                     }
                 }
                 
@@ -128,9 +131,9 @@ if uploaded_room is not None:
                 }
                 .gallery-card img {
                     width: 100% !important;
-                    height: 65px !important;
+                    height: 50px !important; /* スマホ縦画面向けに少し低く調整 */
                     object-fit: cover !important;
-                    border-radius: 4px !important;
+                    border-radius: 3px !important;
                 }
                 
                 /* 深緑色ボタンの指定 */
@@ -138,14 +141,14 @@ if uploaded_room is not None:
                 div[data-testid="stDialog"] button[kind="primary"],
                 div[data-testid="stDialog"] button[kind="secondary"] {
                     padding: 2px 0px !important;
-                    font-size: 11px !important;
+                    font-size: 10px !important; /* スマホ縦画面向けに少し小さく調整 */
                     background-color: #2e5a44 !important;
                     background: #2e5a44 !important;
                     color: white !important;
                     border: none !important;
-                    border-radius: 4px !important;
-                    min-height: 24px !important;
-                    height: 24px !important;
+                    border-radius: 3px !important;
+                    min-height: 22px !important;
+                    height: 22px !important;
                     line-height: 1 !important;
                     margin-top: 2px !important;
                 }
@@ -162,7 +165,7 @@ if uploaded_room is not None:
             """, unsafe_allow_html=True)
 
             # st.columns を使わずに純粋な繰り返し処理で配置
-            cols_per_row = 3
+            cols_per_row = 5
             for i in range(0, len(files), cols_per_row):
                 cols = st.columns(cols_per_row)
                 for j in range(cols_per_row):
