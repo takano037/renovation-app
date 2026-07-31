@@ -72,53 +72,88 @@ if uploaded_room is not None:
     # 2. 素材の選択方式
     st.subheader("2. 張り替える素材を選択")
     
-    tab1, tab2 = st.tabs(["① 画像一覧（ギャラリー）から選ぶ", "② 画像を直接アップロード"])
+    tab1, tab2 = st.tabs(["① フォルダから選ぶ", "② 画像を直接アップロード"])
     
     tex_img = None
 
-    with tab1:
-        assets_dir = "assets"
-        preset_files = []
-        if os.path.exists(assets_dir):
-            preset_files = sorted([f for f in os.listdir(assets_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
-
-        if preset_files:
-            if "selected_preset" not in st.session_state or st.session_state.selected_preset not in preset_files:
-                st.session_state.selected_preset = preset_files[0]
-
-            st.write("▼ 画像一覧から使用したい素材をタップしてください：")
-            
+    # --- ポップアップ（モーダル）表示用ダイアログ関数 ---
+    @st.dialog("🎨 素材ギャラリーから選択", width="large")
+    def open_material_gallery(folder_path):
+        st.write(f"**カテゴリ: {os.path.basename(folder_path)}**")
+        files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+        
+        if files:
             cols_per_row = 3
-            for i in range(0, len(preset_files), cols_per_row):
+            for i in range(0, len(files), cols_per_row):
                 cols = st.columns(cols_per_row)
                 for j in range(cols_per_row):
-                    if i + j < len(preset_files):
-                        filename = preset_files[i + j]
-                        file_path = os.path.join(assets_dir, filename)
-                        
+                    if i + j < len(files):
+                        filename = files[i + j]
+                        file_path = os.path.join(folder_path, filename)
                         img_thumb = Image.open(file_path)
                         img_thumb = ImageOps.exif_transpose(img_thumb)
                         
                         with cols[j]:
                             st.image(img_thumb, use_container_width=True)
-                            
-                            is_selected = (filename == st.session_state.selected_preset)
-                            btn_label = "✅ 選択中" if is_selected else "選択する"
-                            if st.button(btn_label, key=f"btn_{filename}", disabled=is_selected):
-                                st.session_state.selected_preset = filename
+                            rel_path = os.path.relpath(file_path, "assets")
+                            is_selected = (rel_path == st.session_state.get("selected_preset_path"))
+                            btn_label = "✅ 選択中" if is_selected else "選択"
+                            if st.button(btn_label, key=f"dialog_btn_{rel_path}", disabled=is_selected):
+                                st.session_state.selected_preset_path = rel_path
                                 st.rerun()
-
-            selected_file_path = os.path.join(assets_dir, st.session_state.selected_preset)
-            preset_pil = Image.open(selected_file_path)
-            preset_pil = ImageOps.exif_transpose(preset_pil)
-            preset_np = np.array(preset_pil)
-            if preset_np.shape[2] == 4:
-                preset_np = cv2.cvtColor(preset_np, cv2.COLOR_RGBA2RGB)
-            tex_img = preset_np
-
-            st.success(f"現在選択中のプリセット: **{st.session_state.selected_preset}**")
         else:
-            st.warning("`assets` フォルダに画像がまだありません。")
+            st.warning("このフォルダには画像がありません。")
+
+    with tab1:
+        assets_dir = "assets"
+        
+        if os.path.exists(assets_dir):
+            # assets直下のフォルダ一覧を取得
+            subfolders = [f for f in os.listdir(assets_dir) if os.path.isdir(os.path.join(assets_dir, f))]
+            
+            # assets直下に画像がある場合は「未分類」フォルダとして扱う
+            root_files = [f for f in os.listdir(assets_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+            
+            folder_options = subfolders.copy()
+            if root_files:
+                folder_options.append("未分類（assets直下）")
+
+            if folder_options:
+                selected_folder_name = st.selectbox("📂 カテゴリ（フォルダ）を選択", folder_options)
+                
+                if selected_folder_name == "未分類（assets直下）":
+                    target_folder_path = assets_dir
+                else:
+                    target_folder_path = os.path.join(assets_dir, selected_folder_name)
+
+                # デフォルト選択の初期化
+                if "selected_preset_path" not in st.session_state:
+                    first_file = sorted([f for f in os.listdir(target_folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+                    if first_file:
+                        st.session_state.selected_preset_path = os.path.relpath(os.path.join(target_folder_path, first_file[0]), "assets")
+
+                # ポップアップを開くボタン
+                if st.button("🖼️ 素材ギャラリー（一覧）を開く", type="primary"):
+                    open_material_gallery(target_folder_path)
+
+                # 現在選択されている素材のプレビューを表示
+                if "selected_preset_path" in st.session_state:
+                    full_selected_path = os.path.join(assets_dir, st.session_state.selected_preset_path)
+                    if os.path.exists(full_selected_path):
+                        preset_pil = Image.open(full_selected_path)
+                        preset_pil = ImageOps.exif_transpose(preset_pil)
+                        preset_np = np.array(preset_pil)
+                        if preset_np.shape[2] == 4:
+                            preset_np = cv2.cvtColor(preset_np, cv2.COLOR_RGBA2RGB)
+                        tex_img = preset_np
+
+                        st.write("---")
+                        st.caption("現在選択中の素材:")
+                        st.image(preset_pil, caption=st.session_state.selected_preset_path, width=120)
+            else:
+                st.warning("`assets` フォルダ内に画像またはサブフォルダが見つかりません。")
+        else:
+            st.warning("`assets` フォルダが存在しません。")
 
     with tab2:
         uploaded_texture = st.file_uploader("お持ちの素材画像（JPG/PNG）をアップロード", type=["jpg", "jpeg", "png"])
