@@ -97,51 +97,49 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            # スマホでも1画面に収まるように5列縮小表示＋ボタンを深緑にする強力なCSS
+            # スマホ環境（768px以下）でも縦1列に落ちないようにレスポンシブを上書きする強固なCSS
             st.markdown("""
                 <style>
-                /* モーダル内の横並びブロックをスマホ画面幅で折り返す */
-                div[data-testid="stHorizontalBlock"] {
-                    flex-wrap: wrap !important;
-                    gap: 0.2rem !important;
-                }
-                /* 1列あたり18%幅（5列表示） */
-                div[data-testid="column"] {
-                    width: 18% !important;
-                    flex: 0 0 18% !important;
-                    min-width: 18% !important;
-                    padding: 0px !important;
-                }
-                /* 画像の高さを固定して綺麗に並べる */
-                div[data-testid="column"] img {
-                    object-fit: cover !important;
-                    max-height: 60px !important;
-                    border-radius: 4px !important;
-                }
-                /* ギャラリー内の全ボタン（Primary/Secondary問わず）を深緑色に強制固定 */
-                div[data-testid="column"] button,
-                div[data-testid="column"] button[kind="primary"],
-                div[data-testid="column"] button[kind="secondary"] {
+                /* PC表示時のボタンカラー・基本スタイル */
+                div[data-testid="column"] button {
                     padding: 2px 0px !important;
-                    font-size: 10px !important;
+                    font-size: 11px !important;
                     background-color: #2e5a44 !important;
-                    background: #2e5a44 !important;
                     color: white !important;
                     border: none !important;
                     border-radius: 4px !important;
-                    min-height: 24px !important;
-                    height: 24px !important;
                 }
-                /* ホバー（タップ時） */
                 div[data-testid="column"] button:hover {
                     background-color: #1f3f2f !important;
                     color: white !important;
                 }
-                /* 選択済み（無効化状態） */
                 div[data-testid="column"] button:disabled {
                     background-color: #e0e0e0 !important;
-                    background: #e0e0e0 !important;
                     color: #888888 !important;
+                }
+
+                /* スマホ（画面幅768px以下）専用のレイアウト破棄・グリッド制御 */
+                @media (max-width: 768px) {
+                    div[data-testid="stHorizontalBlock"] {
+                        display: flex !important;
+                        flex-direction: row !important;
+                        flex-wrap: nowrap !important;
+                        gap: 0.3rem !important;
+                    }
+                    /* スマホ時は3列表示（※5列にしたい場合は 18% に変更） */
+                    div[data-testid="column"] {
+                        width: 31% !important;
+                        flex: 0 0 31% !important;
+                        min-width: 31% !important;
+                    }
+                    div[data-testid="column"] img {
+                        height: 70px !important;
+                        object-fit: cover !important;
+                    }
+                    div[data-testid="column"] button {
+                        font-size: 10px !important;
+                        height: 26px !important;
+                    }
                 }
                 </style>
             """, unsafe_allow_html=True)
@@ -191,7 +189,6 @@ if uploaded_room is not None:
                     if first_file:
                         st.session_state.selected_preset_path = os.path.relpath(os.path.join(target_folder_path, first_file[0]), "assets")
 
-                # 「素材ギャラリーを開く」メインボタン自体も深緑（緑）ボタンに変更
                 if st.button("🖼️ 素材ギャラリー（一覧）を開く"):
                     open_material_gallery(target_folder_path)
 
@@ -281,4 +278,4 @@ if uploaded_room is not None:
             st.success("合成が完了しました！")
             st.image(img_result, caption="リフォーム後イメージ", use_container_width=True)
     else:
-        st.info("画像上の角を3箇所以上タップすると、合成ボタンが有効化されます。")
+        st.info("画像上の角を3箇所在上タップすると、合成ボタンが有効化されます。")
