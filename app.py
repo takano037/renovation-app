@@ -19,7 +19,7 @@ def rotate_image(image, angle):
     rotated = cv2.warpAffine(image, M, (new_w, new_h), borderMode=cv2.BORDER_REFLECT)
     return rotated
 
-st.title("🏠 リフォームイメージ作成アプリ")
+st.title("リフォームイメージ作成")
 st.write("部屋の写真をアップロードして、プリセット素材や手持ちの画像で合成してみましょう。")
 
 # 1. 部屋の写真アップロード
