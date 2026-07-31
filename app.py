@@ -366,31 +366,45 @@ if uploaded_room is not None:
     st.subheader("🖼️ 全体コーディネート完成イメージ")
     st.image(final_output_np, caption="リアルタイム調整後の完成イメージ", use_container_width=True)
 
-    # --- ★ 追加機能：使用中の素材品番（ファイル名）一覧表示 ---
+    # --- ★ 追加機能：使用中の素材品番（ファイル名）＆エリア名一覧表示 ---
     if st.session_state.layers:
         st.markdown("**📋 このイメージで使用中の素材品番（品番: カテゴリ）**")
         for layer in st.session_state.layers:
-            # ファイルパスからファイル名（拡張子なし）とカテゴリ名を取得
             filename_with_ext = os.path.basename(layer["tex_path"])
             filename_no_ext = os.path.splitext(filename_with_ext)[0]  # 品番
             category_name = os.path.basename(os.path.dirname(layer["tex_path"]))  # カテゴリ
+            area_name = layer["name"]  # エリア名
             
-            st.markdown(f"- **{filename_no_ext}** ({category_name})")
+            # エリア名を灰色の薄文字で表示
+            st.markdown(f"- **{filename_no_ext}** ({category_name}) <span style='color: gray; font-size: 0.9em;'>- {area_name}</span>", unsafe_allow_html=True)
 
-    # --- ★ 追加機能：イメージ保存（ダウンロード）ボタン ---
-    # OpenCV(BGR)からPIL(RGB)に変換
+    # --- ★ 追加機能：イメージ保存（ダウンロード）ボタン（深緑色スタイル適用） ---
     final_pil = Image.fromarray(final_output_np)
-    
-    # 画像をメモリ上のバッファにJPEGとして保存
     buf = io.BytesIO()
     final_pil.save(buf, format="JPEG", quality=95)
     byte_im = buf.getvalue()
 
-    # ダウンロードボタンを設置
+    # 保存ボタンのスタイルを深緑色（#2e5a44）に変更するCSS
+    st.markdown("""
+        <style>
+        div[data-testid="stDownloadButton"] button {
+            background-color: #2e5a44 !important;
+            background: #2e5a44 !important;
+            color: white !important;
+            border: none !important;
+            font-weight: bold !important;
+        }
+        div[data-testid="stDownloadButton"] button:hover {
+            background-color: #1f3f2f !important;
+            color: white !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     st.download_button(
         label="💾 このリフォームイメージを保存する",
         data=byte_im,
         file_name="reform_simulation.jpg",
         mime="image/jpeg",
-        type="primary"  # ボタンを目立たせる
+        use_container_width=True
     )
