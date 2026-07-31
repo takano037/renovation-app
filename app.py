@@ -5,6 +5,20 @@ import numpy as np
 from PIL import Image, ImageOps
 from streamlit_image_coordinates import streamlit_image_coordinates
 
+# 画像を任意の角度で回転（黒枠が出ないようにクロップ）する関数
+def rotate_image(image, angle):
+    (h, w) = image.shape[:2]
+    (cX, cY) = (w // 2, h // 2)
+    M = cv2.getRotationMatrix2D((cX, cY), angle, 1.0)
+    cos = np.abs(M[0, 0])
+    sin = np.abs(M[0, 1])
+    new_w = int((h * sin) + (w * cos))
+    new_h = int((h * cos) + (w * sin))
+    M[0, 2] += (new_w / 2) - cX
+    M[1, 2] += (new_h / 2) - cY
+    rotated = cv2.warpAffine(image, M, (new_w, new_h), borderMode=cv2.BORDER_REFLECT)
+    return rotated
+
 st.title("🏠 リフォームイメージ作成アプリ")
 st.write("部屋の写真をアップロードして、プリセット素材や手持ちの画像で合成してみましょう。")
 
@@ -83,13 +97,22 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            # スマホ等でも画面幅に関わらず強制的5列表示にするCSS
+            # スマホ等の小画面でも強制的に5列表示を適用する強力なCSS
             st.markdown("""
                 <style>
                 div[data-testid="column"] {
-                    width: 18% !important;
-                    flex: 1 1 18% !important;
-                    min-width: 18% !important;
+                    width: 19% !important;
+                    flex: 0 0 19% !important;
+                    min-width: 19% !important;
+                }
+                div[data-testid="stHorizontalBlock"] {
+                    flex-wrap: nowrap !important;
+                    overflow-x: auto !important;
+                    gap: 0.3rem !important;
+                }
+                div[data-testid="column"] button {
+                    padding: 2px 0px !important;
+                    font-size: 11px !important;
                 }
                 </style>
             """, unsafe_allow_html=True)
@@ -176,7 +199,7 @@ if uploaded_room is not None:
     
     col_dir, col_rep = st.columns([1, 2])
     with col_dir:
-        rotation_opt = st.radio("柄の向き", ["標準（縦）", "90度回転（横）"], horizontal=False)
+        rotation_opt = st.radio("柄の向き", ["標準（縦）", "90度回転（横）", "右斜め（45度）", "左斜め（-45度）"], horizontal=False)
     with col_rep:
         repeat_count = st.slider("柄の細かさ（リピート回数）", min_value=1, max_value=8, value=3)
 
@@ -185,9 +208,13 @@ if uploaded_room is not None:
         if st.button("イメージを合成する", type="primary"):
             pts_cnt = len(st.session_state.points)
 
-            # 向き調整（90度回転）
+            # 向き調整（回転処理）
             if rotation_opt == "90度回転（横）":
                 tex_img = cv2.rotate(tex_img, cv2.ROTATE_90_CLOCKWISE)
+            elif rotation_opt == "右斜め（45度）":
+                tex_img = rotate_image(tex_img, -45)
+            elif rotation_opt == "左斜め（-45度）":
+                tex_img = rotate_image(tex_img, 45)
 
             # 素材画像を縮小して敷き詰める（タイリング処理）
             if repeat_count > 1:
