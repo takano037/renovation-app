@@ -97,40 +97,21 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            # スマホ縦画面でも絶対に崩れないCSS Gridによる強制5列レイアウト
+            # 深緑色ボタン用のスタイル適用
             st.markdown("""
                 <style>
-                .gallery-grid {
-                    display: grid !important;
-                    grid-template-columns: repeat(5, 1fr) !important;
-                    gap: 4px !important;
-                    width: 100% !important;
-                    margin-bottom: 10px;
-                }
-                .gallery-item {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                }
-                .gallery-item img {
-                    width: 100% !important;
-                    height: 55px !important;
-                    object-fit: cover !important;
-                    border-radius: 3px !important;
-                }
-                /* ボタンを深緑に指定 */
                 div[data-testid="stDialog"] button,
                 div[data-testid="stDialog"] button[kind="primary"],
                 div[data-testid="stDialog"] button[kind="secondary"] {
-                    padding: 1px 0px !important;
-                    font-size: 9px !important;
+                    padding: 2px 0px !important;
+                    font-size: 11px !important;
                     background-color: #2e5a44 !important;
                     background: #2e5a44 !important;
                     color: white !important;
                     border: none !important;
-                    border-radius: 3px !important;
-                    min-height: 22px !important;
-                    height: 22px !important;
+                    border-radius: 4px !important;
+                    min-height: 24px !important;
+                    height: 24px !important;
                     line-height: 1 !important;
                     margin-top: 2px !important;
                 }
@@ -146,8 +127,9 @@ if uploaded_room is not None:
                 </style>
             """, unsafe_allow_html=True)
 
-            # HTMLでの5列固定グリッド生成＋Streamlitボタン配置
-            cols_per_row = 5
+            # Streamlitのst.columnsを使わず、純粋なHTML CSS Gridで3列グリッドを作成
+            # ※ 5列にしたい場合は `repeat(3, 1fr)` を `repeat(5, 1fr)` に変更
+            cols_per_row = 3
             for i in range(0, len(files), cols_per_row):
                 cols = st.columns(cols_per_row)
                 for j in range(cols_per_row):
