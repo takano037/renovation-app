@@ -366,16 +366,31 @@ if uploaded_room is not None:
                         st.session_state.layers.pop(idx)
                         st.rerun()
 
-                # --- 編集枠専用プレビュー画像の作成 ---
-                layer_prev_np = render_all_layers(original_np, st.session_state.layers)
-                for i, pt in enumerate(layer["points"]):
-                    cv2.circle(layer_prev_np, (pt[0], pt[1]), 10, (0, 0, 255), -1)  # 赤い丸
-                    cv2.putText(layer_prev_np, str(i + 1), (pt[0] + 15, pt[1] + 15),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+                # --- ★ 選択中の点だけ赤（Red）、その他を青（Blue）で描き分ける処理 ---
+                pt_sel_key = f"pt_sel_idx_{idx}"
+                if pt_sel_key not in st.session_state:
+                    st.session_state[pt_sel_key] = 0
+                active_pt_idx = st.session_state[pt_sel_key]
 
+                layer_prev_np = render_all_layers(original_np, st.session_state.layers)
+                
+                # 枠線（青）
                 if len(layer["points"]) >= 3:
                     pts_arr = np.array(layer["points"], np.int32).reshape((-1, 1, 2))
-                    cv2.polylines(layer_prev_np, [pts_arr], isClosed=True, color=(0, 0, 255), thickness=3)
+                    cv2.polylines(layer_prev_np, [pts_arr], isClosed=True, color=(255, 0, 0), thickness=2)
+
+                # 点の描画（選択中の点のみ赤で強調、その他は青）
+                for i, pt in enumerate(layer["points"]):
+                    if i == active_pt_idx:
+                        # 選択中の点: 赤色 (RGB: 255, 0, 0)＆少し大きめ
+                        cv2.circle(layer_prev_np, (pt[0], pt[1]), 12, (255, 0, 0), -1)
+                        cv2.putText(layer_prev_np, str(i + 1), (pt[0] + 15, pt[1] + 15),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 0, 0), 3)
+                    else:
+                        # 選択外の点: 青色 (RGB: 0, 0, 255)
+                        cv2.circle(layer_prev_np, (pt[0], pt[1]), 8, (0, 0, 255), -1)
+                        cv2.putText(layer_prev_np, str(i + 1), (pt[0] + 15, pt[1] + 15),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
                 layer_prev_pil = Image.fromarray(layer_prev_np)
 
@@ -391,10 +406,6 @@ if uploaded_room is not None:
                 # --- 位置調整エリア ---
                 st.markdown("**🎯 角（ポイント）の位置調整**")
                 
-                pt_sel_key = f"pt_sel_idx_{idx}"
-                if pt_sel_key not in st.session_state:
-                    st.session_state[pt_sel_key] = 0
-                
                 pt_labels = [f"点 {i+1}: (X: {pt[0]}, Y: {pt[1]})" for i, pt in enumerate(layer["points"])]
                 selected_pt_idx = st.selectbox("調整したい点を選択", range(len(layer["points"])), index=st.session_state[pt_sel_key], format_func=lambda i: pt_labels[i], key=f"pt_sel_sb_{idx}")
                 
@@ -402,7 +413,7 @@ if uploaded_room is not None:
                     st.session_state[pt_sel_key] = selected_pt_idx
                     st.rerun()
 
-                st.caption(f"💡 「点 {selected_pt_idx+1}」を移動したい場所を画像上で直接タップするか、下の矢印ボタンで微調整できます。")
+                st.caption(f"💡 赤く強調されている「点 {selected_pt_idx+1}」を移動したい場所を画像上で直接タップするか、下の矢印ボタンで微調整できます。")
 
                 # 画像上での直接タップ検知（ワンタップで大きく移動）
                 edit_coords = streamlit_image_coordinates(layer_prev_pil, key=f"edit_coords_{idx}")
