@@ -162,6 +162,8 @@ def open_material_gallery(folder_path, state_key_to_set):
 st.title("🏠 リフォームイメージ作成")
 st.write("部屋の写真をアップロードして、各部位の素材や調整内容を自由に変更・調整してみましょう。")
 
+assets_dir = "assets"
+
 # --- セッション状態の初期化 ---
 if "layers" not in st.session_state:
     st.session_state.layers = []  # 各エリアのレイヤー保存用
@@ -236,7 +238,6 @@ if uploaded_room is not None:
         st.subheader("2. 新しい張り替えエリアの追加")
         layer_name = st.text_input("エリアの名前（例: 床, 正面壁, 天井）", value=f"エリア {len(st.session_state.layers)+1}")
         
-        assets_dir = "assets"
         subfolders = [f for f in os.listdir(assets_dir) if os.path.isdir(os.path.join(assets_dir, f))] if os.path.exists(assets_dir) else []
         selected_folder = st.selectbox("📂 カテゴリを選択", subfolders) if subfolders else None
 
@@ -300,7 +301,6 @@ if uploaded_room is not None:
                     t_path = os.path.join(assets_dir, sel_fol)
                     
                     if st.button("🖼️ 素材ギャラリー（一覧）を開く", key=f"btn_gal_{idx}"):
-                        # レイヤー用のセッションキーを一時的に作成して渡す
                         st.session_state[f"layer_tex_{idx}"] = layer["tex_path"]
                         open_material_gallery(t_path, f"layer_tex_{idx}")
 
