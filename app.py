@@ -97,29 +97,21 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            # Streamlitのレスポンシブ縦崩れを完全に無効化し、5列Gridを構築するCSS
+            # どんな画面幅でも「絶対に5列」で固定するCSS
             st.markdown("""
                 <style>
                 /* モーダル枠のパディング最小化 */
                 div[data-testid="stDialog"] div[role="dialog"] {
-                    padding: 12px !important;
+                    padding: 10px !important;
                 }
                 
                 /* st.columns を使わず HTML Grid で5列を強制 */
                 .custom-gallery-container {
                     display: grid !important;
                     grid-template-columns: repeat(5, 1fr) !important;
-                    gap: 6px !important;
+                    gap: 3px !important; /* スマホ向けに間隔をさらに詰める */
                     width: 100% !important;
                     margin-bottom: 10px;
-                }
-                
-                /* スマホ縦画面（600px以下）でも5列で強制固定 */
-                @media (max-width: 600px) {
-                    .custom-gallery-container {
-                        grid-template-columns: repeat(5, 1fr) !important;
-                        gap: 3px !important;
-                    }
                 }
                 
                 /* 各画像カードのスタイル */
@@ -131,26 +123,26 @@ if uploaded_room is not None:
                 }
                 .gallery-card img {
                     width: 100% !important;
-                    height: 50px !important; /* スマホ縦画面向けに少し低く調整 */
+                    height: 50px !important; /* サムネイルの高さをスマホ向けにコンパクトに */
                     object-fit: cover !important;
                     border-radius: 3px !important;
                 }
                 
-                /* 深緑色ボタンの指定 */
+                /* 深緑色ボタンの指定（スマホ向けにさらにコンパクトに） */
                 div[data-testid="stDialog"] button,
                 div[data-testid="stDialog"] button[kind="primary"],
                 div[data-testid="stDialog"] button[kind="secondary"] {
-                    padding: 2px 0px !important;
-                    font-size: 10px !important; /* スマホ縦画面向けに少し小さく調整 */
+                    padding: 1px 0px !important;
+                    font-size: 9px !important;
                     background-color: #2e5a44 !important;
                     background: #2e5a44 !important;
                     color: white !important;
                     border: none !important;
                     border-radius: 3px !important;
-                    min-height: 22px !important;
-                    height: 22px !important;
+                    min-height: 20px !important;
+                    height: 20px !important;
                     line-height: 1 !important;
-                    margin-top: 2px !important;
+                    margin-top: 1px !important;
                 }
                 div[data-testid="stDialog"] button:hover {
                     background-color: #1f3f2f !important;
