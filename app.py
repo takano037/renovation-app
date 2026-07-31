@@ -19,7 +19,7 @@ def rotate_image(image, angle):
     rotated = cv2.warpAffine(image, M, (new_w, new_h), borderMode=cv2.BORDER_REFLECT)
     return rotated
 
-# 単一レイヤー（1箇所の合成）を処理する関数
+# 単一レイヤー（1箇所の合成）を処理する関数（黒フチ対策済み）
 def process_layer(base_img, points, tex_path, rotation_opt, repeat_count, opacity_pct):
     if not os.path.exists(tex_path) or len(points) < 3:
         return base_img
@@ -45,17 +45,17 @@ def process_layer(base_img, points, tex_path, rotation_opt, repeat_count, opacit
     else:
         tex_tiled = tex_np
 
-    # 変形
+    # 変形（BORDER_WRAP を指定して端に黒枠が混ざるのを完全に防止）
     pts_cnt = len(points)
     if pts_cnt == 4:
         pts1 = np.float32([[0, 0], [400, 0], [400, 400], [0, 400]])
         pts2 = np.float32(points)
         tex_resized = cv2.resize(tex_tiled, (400, 400))
         matrix = cv2.getPerspectiveTransform(pts1, pts2)
-        warped_texture = cv2.warpPerspective(tex_resized, matrix, (w, h))
+        warped_texture = cv2.warpPerspective(tex_resized, matrix, (w, h), borderMode=cv2.BORDER_WRAP)
     else:
         th, tw, _ = tex_tiled.shape
-        warped_texture = np.tile(tex_tiled, (h // th + 1, w // tw + 1, 1))[:h, :w]
+        warped_texture = np.tile(tex_tiled, (h // th + 2, w // tw + 2, 1))[:h, :w]
 
     # 陰影ブレンド
     gray_orig = cv2.cvtColor(base_img, cv2.COLOR_RGB2GRAY).astype(float) / 255.0
@@ -63,7 +63,7 @@ def process_layer(base_img, points, tex_path, rotation_opt, repeat_count, opacit
     shadow_map = np.dstack([shadow_map, shadow_map, shadow_map])
     blended_texture = (warped_texture.astype(float) * shadow_map).clip(0, 255).astype(np.uint8)
 
-    # マスク＆透明度調整
+    # マスク作成（アンチエイリアス処理による黒フチを回避するため二値化固定）
     alpha = opacity_pct / 100.0
     mask = np.zeros((h, w), dtype=np.uint8)
     pts_array = np.array([points], dtype=np.int32)
