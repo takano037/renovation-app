@@ -97,66 +97,58 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            # どんな画面幅でも「絶対に5列」で固定するCSS
+            # スマホ環境（768px以下）でも縦1列に落ちないようにレスポンシブを上書きする強固なCSS
             st.markdown("""
                 <style>
-                /* モーダル枠のパディング最小化 */
-                div[data-testid="stDialog"] div[role="dialog"] {
-                    padding: 10px !important;
-                }
-                
-                /* st.columns を使わず HTML Grid で5列を強制 */
-                .custom-gallery-container {
-                    display: grid !important;
-                    grid-template-columns: repeat(5, 1fr) !important;
-                    gap: 3px !important; /* スマホ向けに間隔をさらに詰める */
-                    width: 100% !important;
-                    margin-bottom: 10px;
-                }
-                
-                /* 各画像カードのスタイル */
-                .gallery-card {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    width: 100%;
-                }
-                .gallery-card img {
-                    width: 100% !important;
-                    height: 50px !important; /* サムネイルの高さをスマホ向けにコンパクトに */
-                    object-fit: cover !important;
-                    border-radius: 3px !important;
-                }
-                
-                /* 深緑色ボタンの指定（スマホ向けにさらにコンパクトに） */
-                div[data-testid="stDialog"] button,
-                div[data-testid="stDialog"] button[kind="primary"],
-                div[data-testid="stDialog"] button[kind="secondary"] {
-                    padding: 1px 0px !important;
-                    font-size: 9px !important;
+                /* PC表示時のボタンカラー・基本スタイル（深緑） */
+                div[data-testid="column"] button {
+                    padding: 2px 0px !important;
+                    font-size: 11px !important;
                     background-color: #2e5a44 !important;
-                    background: #2e5a44 !important;
                     color: white !important;
                     border: none !important;
-                    border-radius: 3px !important;
-                    min-height: 20px !important;
-                    height: 20px !important;
-                    line-height: 1 !important;
-                    margin-top: 1px !important;
+                    border-radius: 4px !important;
                 }
-                div[data-testid="stDialog"] button:hover {
+                div[data-testid="column"] button:hover {
                     background-color: #1f3f2f !important;
                     color: white !important;
                 }
-                div[data-testid="stDialog"] button:disabled {
+                div[data-testid="column"] button:disabled {
                     background-color: #e0e0e0 !important;
-                    background: #e0e0e0 !important;
                     color: #888888 !important;
+                }
+
+                /* スマホ（画面幅768px以下）専用のレイアウト破棄・グリッド制御 */
+                /* Streamlit標準の flex-direction: column を row に強制上書き */
+                @media (max-width: 768px) {
+                    div[data-testid="stHorizontalBlock"] {
+                        display: flex !important;
+                        flex-direction: row !important;
+                        flex-wrap: nowrap !important;
+                        gap: 0.3rem !important;
+                    }
+                    /* スマホ時は3列表示（※1コマ幅31%） */
+                    /* ※5列にしたい場合は width: 18% !important; に変更 */
+                    div[data-testid="column"] {
+                        width: 31% !important;
+                        flex: 0 0 31% !important;
+                        min-width: 31% !important;
+                        padding: 0px !important;
+                    }
+                    div[data-testid="column"] img {
+                        height: 70px !important;
+                        object-fit: cover !important;
+                        border-radius: 4px !important;
+                    }
+                    div[data-testid="column"] button {
+                        font-size: 10px !important;
+                        height: 26px !important;
+                    }
                 }
                 </style>
             """, unsafe_allow_html=True)
 
-            # st.columns を使わずに純粋な繰り返し処理で配置
+            # PC・横画面はこれまで通り5列で配置
             cols_per_row = 5
             for i in range(0, len(files), cols_per_row):
                 cols = st.columns(cols_per_row)
@@ -291,4 +283,4 @@ if uploaded_room is not None:
             st.success("合成が完了しました！")
             st.image(img_result, caption="リフォーム後イメージ", use_container_width=True)
     else:
-        st.info("画像上の角を3箇所在上タップすると、合成ボタンが有効化されます。")
+        st.info("画像上の角を3箇所以上タップすると、合成ボタンが有効化されます。")
