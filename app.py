@@ -160,7 +160,7 @@ def open_material_gallery(folder_path, state_key_to_set):
         st.warning("このフォルダには画像がありません。")
 
 st.title("🏠 リフォームイメージ作成")
-st.write("部屋の写真をアップロードして、各部位の素材や調整内容を自由に変更・調整してみましょう。")
+st.write("部屋の写真をアップロードして、各部位の素材や位置調整を自由に変更してみましょう。")
 
 assets_dir = "assets"
 
@@ -281,7 +281,7 @@ if uploaded_room is not None:
     if st.session_state.layers:
         st.write("---")
         st.subheader("⚙️ 登録済みエリアの再調整・編集")
-        st.caption("保存済みのエリアの柄、向き、透明度などをいつでもリアルタイムに修正できます。")
+        st.caption("保存済みのエリアの柄、向き、透明度、および「角の位置」を修正できます。")
 
         for idx, layer in enumerate(st.session_state.layers):
             with st.expander(f"📍 エリア {idx+1}: {layer['name']}", expanded=False):
@@ -290,6 +290,32 @@ if uploaded_room is not None:
                     if st.button(f"🗑️ このエリアを削除", key=f"del_{idx}"):
                         st.session_state.layers.pop(idx)
                         st.rerun()
+
+                # --- ★ 点の位置の微調整機能 ---
+                st.markdown("**🎯 角（ポイント）の位置調整**")
+                pt_labels = [f"点 {i+1}: (X: {pt[0]}, Y: {pt[1]})" for i, pt in enumerate(layer["points"])]
+                selected_pt_idx = st.selectbox("調整したい点を選択", range(len(layer["points"])), format_func=lambda i: pt_labels[i], key=f"pt_sel_{idx}")
+
+                col_up, col_down, col_left, col_right = st.columns(4)
+                step = 10  # 1回の移動ドット数
+                with col_up:
+                    if st.button("⬆️ 上へ", key=f"up_{idx}"):
+                        layer["points"][selected_pt_idx][1] -= step
+                        st.rerun()
+                with col_down:
+                    if st.button("⬇️ 下へ", key=f"down_{idx}"):
+                        layer["points"][selected_pt_idx][1] += step
+                        st.rerun()
+                with col_left:
+                    if st.button("⬅️ 左へ", key=f"left_{idx}"):
+                        layer["points"][selected_pt_idx][0] -= step
+                        st.rerun()
+                with col_right:
+                    if st.button("➡️ 右へ", key=f"right_{idx}"):
+                        layer["points"][selected_pt_idx][0] += step
+                        st.rerun()
+
+                st.write("---")
 
                 # 素材変更
                 if os.path.exists(assets_dir):
