@@ -6,6 +6,68 @@ from PIL import Image, ImageOps
 import io  # 画像ダウンロード用
 from streamlit_image_coordinates import streamlit_image_coordinates
 
+# ページ基本設定
+st.set_page_config(
+    page_title="RoomSimulator - リフォームシミュレーター",
+    page_icon="✨",
+    layout="centered"
+)
+
+# --- スタイリッシュデザイン（CSS / Google Fonts）の適用 ---
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+
+    /* 全体フォント適用 */
+    html, body, [class*="css"], div[data-testid="stAppViewContainer"] {
+        font-family: 'Inter', 'Noto Sans JP', sans-serif !important;
+        letter-spacing: -0.01em;
+    }
+
+    /* メインタイトルデザイン */
+    .main-title {
+        font-family: 'Inter', sans-serif;
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #1a202c;
+        margin-bottom: 0.2rem;
+        letter-spacing: -0.03em;
+    }
+
+    .sub-title {
+        font-size: 0.95rem;
+        color: #718096;
+        margin-bottom: 1.8rem;
+        font-weight: 500;
+    }
+
+    /* アコーディオン・見出しデザインの洗練 */
+    div[data-testid="stExpander"] {
+        border-radius: 8px !important;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+        background-color: #fafafa !important;
+    }
+
+    /* ダウンロードボタンのデザイン */
+    div[data-testid="stDownloadButton"] button {
+        background-color: #2e5a44 !important;
+        background: #2e5a44 !important;
+        color: white !important;
+        border: none !important;
+        font-weight: 600 !important;
+        border-radius: 6px !important;
+        padding: 0.6rem 1rem !important;
+        transition: all 0.2s ease;
+    }
+    div[data-testid="stDownloadButton"] button:hover {
+        background-color: #1f3f2f !important;
+        color: white !important;
+        box-shadow: 0 4px 12px rgba(46, 90, 68, 0.25) !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # 画像を任意の角度で回転（黒枠が出ないようにクロップ）する関数
 def rotate_image(image, angle):
     (h, w) = image.shape[:2]
@@ -160,8 +222,9 @@ def open_material_gallery(folder_path, state_key_to_set):
     else:
         st.warning("このフォルダには画像がありません。")
 
-st.title("🏠 リフォームイメージ作成")
-st.write("部屋の写真をアップロードして、各部位の素材や位置調整を自由に変更してみましょう。")
+# --- タイトル表示 ---
+st.markdown('<div class="main-title">RoomSimulator</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">部屋の写真に建材・壁紙・床材をインタラクティブにシミュレーション</div>', unsafe_allow_html=True)
 
 assets_dir = "assets"
 
@@ -189,7 +252,7 @@ if uploaded_room is not None:
         st.session_state.last_uploaded = uploaded_room.name
 
     st.subheader("1. 張り替えエリアの選択")
-    st.write("角を順にタップしてエリアを指定してください（4箇所推奨）。")
+    st.caption("角を順にタップしてエリアを指定してください（4箇所推奨）。")
 
     if st.button("選択中のタップ点をリセット"):
         st.session_state.current_points = []
@@ -366,7 +429,7 @@ if uploaded_room is not None:
     st.subheader("🖼️ 全体コーディネート完成イメージ")
     st.image(final_output_np, caption="リアルタイム調整後の完成イメージ", use_container_width=True)
 
-    # --- ★ 追加機能：使用中の素材品番（ファイル名）＆エリア名一覧表示 ---
+    # --- 使用中の素材品番（ファイル名）＆エリア名一覧表示 ---
     if st.session_state.layers:
         st.markdown("**📋 このイメージで使用中の素材品番（品番: カテゴリ）**")
         for layer in st.session_state.layers:
@@ -378,28 +441,11 @@ if uploaded_room is not None:
             # エリア名を灰色の薄文字で表示
             st.markdown(f"- **{filename_no_ext}** ({category_name}) <span style='color: gray; font-size: 0.9em;'>- {area_name}</span>", unsafe_allow_html=True)
 
-    # --- ★ 追加機能：イメージ保存（ダウンロード）ボタン（深緑色スタイル適用） ---
+    # --- イメージ保存（ダウンロード）ボタン ---
     final_pil = Image.fromarray(final_output_np)
     buf = io.BytesIO()
     final_pil.save(buf, format="JPEG", quality=95)
     byte_im = buf.getvalue()
-
-    # 保存ボタンのスタイルを深緑色（#2e5a44）に変更するCSS
-    st.markdown("""
-        <style>
-        div[data-testid="stDownloadButton"] button {
-            background-color: #2e5a44 !important;
-            background: #2e5a44 !important;
-            color: white !important;
-            border: none !important;
-            font-weight: bold !important;
-        }
-        div[data-testid="stDownloadButton"] button:hover {
-            background-color: #1f3f2f !important;
-            color: white !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
 
     st.download_button(
         label="💾 このリフォームイメージを保存する",
