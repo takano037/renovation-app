@@ -97,9 +97,43 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            # 深緑色ボタン用のスタイル適用
+            # Streamlitのレスポンシブ縦崩れを物理的に無効化するCSS
             st.markdown("""
                 <style>
+                /* モーダル枠のパディング最小化 */
+                div[data-testid="stDialog"] div[role="dialog"] {
+                    padding: 12px !important;
+                }
+                /* Streamlit標準の列解体ルールをCSS Gridで上書き */
+                .custom-gallery-container {
+                    display: grid !important;
+                    grid-template-columns: repeat(5, 1fr) !important;
+                    gap: 6px !important;
+                    width: 100% !important;
+                }
+                /* スマホ縦画面（600px以下）のときは3列で強制固定 */
+                @media (max-width: 600px) {
+                    .custom-gallery-container {
+                        grid-template-columns: repeat(3, 1fr) !important;
+                        gap: 4px !important;
+                    }
+                }
+                
+                /* 各画像カードのスタイル */
+                .gallery-card {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    width: 100%;
+                }
+                .gallery-card img {
+                    width: 100% !important;
+                    height: 65px !important;
+                    object-fit: cover !important;
+                    border-radius: 4px !important;
+                }
+                
+                /* 深緑色ボタンの指定 */
                 div[data-testid="stDialog"] button,
                 div[data-testid="stDialog"] button[kind="primary"],
                 div[data-testid="stDialog"] button[kind="secondary"] {
@@ -127,8 +161,7 @@ if uploaded_room is not None:
                 </style>
             """, unsafe_allow_html=True)
 
-            # Streamlitのst.columnsを使わず、純粋なHTML CSS Gridで3列グリッドを作成
-            # ※ 5列にしたい場合は `repeat(3, 1fr)` を `repeat(5, 1fr)` に変更
+            # st.columns を使わずに純粋な繰り返し処理で配置
             cols_per_row = 3
             for i in range(0, len(files), cols_per_row):
                 cols = st.columns(cols_per_row)
