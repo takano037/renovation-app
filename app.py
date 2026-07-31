@@ -97,32 +97,31 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            # スマホ縦画面でも強制的に5列で並べるCSS（Flexbox崩れ防止版）
+            # スマホ縦画面でも絶対に崩れないCSS Gridによる強制5列レイアウト
             st.markdown("""
                 <style>
-                /* ポップアップ内のレスポンシブ崩し */
-                div[data-testid="stHorizontalBlock"] {
-                    display: flex !important;
-                    flex-direction: row !important;
-                    flex-wrap: nowrap !important;
-                    justify-content: space-between !important;
-                    gap: 2px !important;
+                .gallery-grid {
+                    display: grid !important;
+                    grid-template-columns: repeat(5, 1fr) !important;
+                    gap: 4px !important;
+                    width: 100% !important;
+                    margin-bottom: 10px;
                 }
-                div[data-testid="column"] {
-                    width: 18% !important;
-                    flex: 1 1 18% !important;
-                    min-width: 0 !important;
-                    padding: 0 !important;
+                .gallery-item {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
                 }
-                div[data-testid="column"] img {
-                    height: 50px !important;
+                .gallery-item img {
+                    width: 100% !important;
+                    height: 55px !important;
                     object-fit: cover !important;
                     border-radius: 3px !important;
                 }
-                /* 深緑色ボタンの指定 */
-                div[data-testid="column"] button,
-                div[data-testid="column"] button[kind="primary"],
-                div[data-testid="column"] button[kind="secondary"] {
+                /* ボタンを深緑に指定 */
+                div[data-testid="stDialog"] button,
+                div[data-testid="stDialog"] button[kind="primary"],
+                div[data-testid="stDialog"] button[kind="secondary"] {
                     padding: 1px 0px !important;
                     font-size: 9px !important;
                     background-color: #2e5a44 !important;
@@ -130,15 +129,16 @@ if uploaded_room is not None:
                     color: white !important;
                     border: none !important;
                     border-radius: 3px !important;
-                    min-height: 20px !important;
-                    height: 20px !important;
+                    min-height: 22px !important;
+                    height: 22px !important;
                     line-height: 1 !important;
+                    margin-top: 2px !important;
                 }
-                div[data-testid="column"] button:hover {
+                div[data-testid="stDialog"] button:hover {
                     background-color: #1f3f2f !important;
                     color: white !important;
                 }
-                div[data-testid="column"] button:disabled {
+                div[data-testid="stDialog"] button:disabled {
                     background-color: #e0e0e0 !important;
                     background: #e0e0e0 !important;
                     color: #888888 !important;
@@ -146,6 +146,7 @@ if uploaded_room is not None:
                 </style>
             """, unsafe_allow_html=True)
 
+            # HTMLでの5列固定グリッド生成＋Streamlitボタン配置
             cols_per_row = 5
             for i in range(0, len(files), cols_per_row):
                 cols = st.columns(cols_per_row)
