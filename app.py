@@ -83,7 +83,18 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            cols_per_row = 3
+            # スマホ等でも画面幅に関わらず強制的5列表示にするCSS
+            st.markdown("""
+                <style>
+                div[data-testid="column"] {
+                    width: 18% !important;
+                    flex: 1 1 18% !important;
+                    min-width: 18% !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+
+            cols_per_row = 5
             for i in range(0, len(files), cols_per_row):
                 cols = st.columns(cols_per_row)
                 for j in range(cols_per_row):
@@ -97,8 +108,8 @@ if uploaded_room is not None:
                             st.image(img_thumb, use_container_width=True)
                             rel_path = os.path.relpath(file_path, "assets")
                             is_selected = (rel_path == st.session_state.get("selected_preset_path"))
-                            btn_label = "✅ 選択中" if is_selected else "選択"
-                            if st.button(btn_label, key=f"dialog_btn_{rel_path}", disabled=is_selected):
+                            btn_label = "✅" if is_selected else "選択"
+                            if st.button(btn_label, key=f"dialog_btn_{rel_path}", disabled=is_selected, use_container_width=True):
                                 st.session_state.selected_preset_path = rel_path
                                 st.rerun()
         else:
@@ -108,10 +119,7 @@ if uploaded_room is not None:
         assets_dir = "assets"
         
         if os.path.exists(assets_dir):
-            # assets直下のフォルダ一覧を取得
             subfolders = [f for f in os.listdir(assets_dir) if os.path.isdir(os.path.join(assets_dir, f))]
-            
-            # assets直下に画像がある場合は「未分類」フォルダとして扱う
             root_files = [f for f in os.listdir(assets_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
             
             folder_options = subfolders.copy()
@@ -126,17 +134,14 @@ if uploaded_room is not None:
                 else:
                     target_folder_path = os.path.join(assets_dir, selected_folder_name)
 
-                # デフォルト選択の初期化
                 if "selected_preset_path" not in st.session_state:
                     first_file = sorted([f for f in os.listdir(target_folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
                     if first_file:
                         st.session_state.selected_preset_path = os.path.relpath(os.path.join(target_folder_path, first_file[0]), "assets")
 
-                # ポップアップを開くボタン
                 if st.button("🖼️ 素材ギャラリー（一覧）を開く", type="primary"):
                     open_material_gallery(target_folder_path)
 
-                # 現在選択されている素材のプレビューを表示
                 if "selected_preset_path" in st.session_state:
                     full_selected_path = os.path.join(assets_dir, st.session_state.selected_preset_path)
                     if os.path.exists(full_selected_path):
@@ -166,14 +171,23 @@ if uploaded_room is not None:
             tex_img = custom_np
             st.success("カスタム素材画像を使用します！")
 
-    # --- 3. 素材の模様（縮小・リピート）サイズ設定 ---
-    st.subheader("3. 模様のサイズ（縮小倍率）調整")
-    repeat_count = st.slider("柄の細かさ（リピート回数）", min_value=1, max_value=8, value=3, help="数字を大きくすると素材が縮小され、柄が細かくなります。")
+    # --- 3. 素材の向き・サイズ調整 ---
+    st.subheader("3. 模様の向きとサイズ（縮小倍率）調整")
+    
+    col_dir, col_rep = st.columns([1, 2])
+    with col_dir:
+        rotation_opt = st.radio("柄の向き", ["標準（縦）", "90度回転（横）"], horizontal=False)
+    with col_rep:
+        repeat_count = st.slider("柄の細かさ（リピート回数）", min_value=1, max_value=8, value=3)
 
     # 4. 合成処理
-    if len(st.session_state.points) >= 3:
-        if st.button("イメージを合成する"):
+    if len(st.session_state.points) >= 3 and tex_img is not None:
+        if st.button("イメージを合成する", type="primary"):
             pts_cnt = len(st.session_state.points)
+
+            # 向き調整（90度回転）
+            if rotation_opt == "90度回転（横）":
+                tex_img = cv2.rotate(tex_img, cv2.ROTATE_90_CLOCKWISE)
 
             # 素材画像を縮小して敷き詰める（タイリング処理）
             if repeat_count > 1:
