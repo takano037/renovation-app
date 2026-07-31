@@ -19,7 +19,7 @@ def rotate_image(image, angle):
     rotated = cv2.warpAffine(image, M, (new_w, new_h), borderMode=cv2.BORDER_REFLECT)
     return rotated
 
-st.title("🏠 リフォームイメージ作成アプリ")
+st.title("リフォームイメージ作成")
 st.write("部屋の写真をアップロードして、プリセット素材や手持ちの画像で合成してみましょう。")
 
 # 1. 部屋の写真アップロード
@@ -97,7 +97,7 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            # スマホ等の小画面でも強制的に5列表示を適用する強力なCSS
+            # 5列表示＋ボタンを深緑（モスグリーン）にするCSS
             st.markdown("""
                 <style>
                 div[data-testid="column"] {
@@ -110,9 +110,23 @@ if uploaded_room is not None:
                     overflow-x: auto !important;
                     gap: 0.3rem !important;
                 }
+                /* 通常ボタンを深緑色に指定 */
                 div[data-testid="column"] button {
-                    padding: 2px 0px !important;
+                    padding: 3px 0px !important;
                     font-size: 11px !important;
+                    background-color: #2e5a44 !important;
+                    color: white !important;
+                    border: none !important;
+                }
+                /* ホバー（押し込み）時 */
+                div[data-testid="column"] button:hover {
+                    background-color: #1f3f2f !important;
+                    color: white !important;
+                }
+                /* 選択中（無効化状態）のボタン */
+                div[data-testid="column"] button:disabled {
+                    background-color: #cccccc !important;
+                    color: #666666 !important;
                 }
                 </style>
             """, unsafe_allow_html=True)
