@@ -97,17 +97,39 @@ if uploaded_room is not None:
         files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
         
         if files:
-            # スマホ環境（768px以下）でも縦1列に落ちないようにレスポンシブを上書きする強固なCSS
+            # ズーム状態でも5列を維持し、ボタンを深緑に保つ強固なCSS
             st.markdown("""
                 <style>
-                /* PC表示時のボタンカラー・基本スタイル（深緑） */
-                div[data-testid="column"] button {
+                div[data-testid="stHorizontalBlock"] {
+                    display: flex !important;
+                    flex-direction: row !important;
+                    flex-wrap: nowrap !important;
+                    gap: 0.2rem !important;
+                }
+                div[data-testid="column"] {
+                    width: 19% !important;
+                    flex: 0 0 19% !important;
+                    min-width: 19% !important;
+                    padding: 0px !important;
+                }
+                div[data-testid="column"] img {
+                    height: 55px !important;
+                    object-fit: cover !important;
+                    border-radius: 4px !important;
+                }
+                /* 通常ボタンを深緑色に指定 */
+                div[data-testid="column"] button,
+                div[data-testid="column"] button[kind="primary"],
+                div[data-testid="column"] button[kind="secondary"] {
                     padding: 2px 0px !important;
-                    font-size: 11px !important;
+                    font-size: 10px !important;
                     background-color: #2e5a44 !important;
+                    background: #2e5a44 !important;
                     color: white !important;
                     border: none !important;
-                    border-radius: 4px !important;
+                    border-radius: 3px !important;
+                    min-height: 22px !important;
+                    height: 22px !important;
                 }
                 div[data-testid="column"] button:hover {
                     background-color: #1f3f2f !important;
@@ -117,38 +139,9 @@ if uploaded_room is not None:
                     background-color: #e0e0e0 !important;
                     color: #888888 !important;
                 }
-
-                /* スマホ（画面幅768px以下）専用のレイアウト破棄・グリッド制御 */
-                /* Streamlit標準の flex-direction: column を row に強制上書き */
-                @media (max-width: 768px) {
-                    div[data-testid="stHorizontalBlock"] {
-                        display: flex !important;
-                        flex-direction: row !important;
-                        flex-wrap: nowrap !important;
-                        gap: 0.3rem !important;
-                    }
-                    /* スマホ時は3列表示（※1コマ幅31%） */
-                    /* ※5列にしたい場合は width: 18% !important; に変更 */
-                    div[data-testid="column"] {
-                        width: 31% !important;
-                        flex: 0 0 31% !important;
-                        min-width: 31% !important;
-                        padding: 0px !important;
-                    }
-                    div[data-testid="column"] img {
-                        height: 70px !important;
-                        object-fit: cover !important;
-                        border-radius: 4px !important;
-                    }
-                    div[data-testid="column"] button {
-                        font-size: 10px !important;
-                        height: 26px !important;
-                    }
-                }
                 </style>
             """, unsafe_allow_html=True)
 
-            # PC・横画面はこれまで通り5列で配置
             cols_per_row = 5
             for i in range(0, len(files), cols_per_row):
                 cols = st.columns(cols_per_row)
