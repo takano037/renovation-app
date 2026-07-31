@@ -13,19 +13,6 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- ★ iPhoneホーム画面追加時（PWAモード）でもピンチズームを強制許可するスクリプト ---
-st.markdown("""
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    </head>
-    <script>
-        // iOS PWAモードでピンチズームがブロックされるのを強制解除
-        document.addEventListener('gesturestart', function (e) {
-            e.stopPropagation();
-        }, true);
-    </script>
-""", unsafe_allow_html=True)
-
 # --- スタイリッシュデザイン（CSS / Google Fonts）の適用 ---
 st.markdown("""
     <style>
@@ -35,7 +22,6 @@ st.markdown("""
     html, body, [class*="css"], div[data-testid="stAppViewContainer"] {
         font-family: 'Inter', 'Noto Sans JP', sans-serif !important;
         letter-spacing: -0.01em;
-        touch-action: manipulation; /* iOSのタッチジェスチャー判定を緩和 */
     }
 
     /* メインタイトルデザイン */
@@ -242,6 +228,40 @@ def open_material_gallery(folder_path, state_key_to_set):
     else:
         st.warning("このフォルダには画像がありません。")
 
+# --- ★ 全画面モーダルでの点選択・調整ダイアログ ---
+@st.dialog("🔍 エリア選択・タップ調整（拡大操作モード）", width="large")
+def open_point_selection_dialog(img_pil, is_edit=False, layer_ref=None, selected_pt_idx=0):
+    st.write("画像を拡大表示した状態で、ピン留めしたい位置を正確にタップしてください。")
+    
+    # モーダル内では表示幅を広げて見やすく設定
+    disp_width = 700
+    w, h = img_pil.size
+    scale = disp_width / float(w)
+    disp_h = int(h * scale)
+    img_resized = img_pil.resize((disp_width, disp_h))
+
+    coords = streamlit_image_coordinates(img_resized, key="dialog_image_coords")
+
+    if coords is not None:
+        click_x = int(coords["x"] / scale)
+        click_y = int(coords["y"] / scale)
+        new_pt = [click_x, click_y]
+
+        if not is_edit:
+            # 新規選択モード
+            if len(st.session_state.current_points) < 8:
+                if not st.session_state.current_points or st.session_state.current_points[-1] != new_pt:
+                    st.session_state.current_points.append(new_pt)
+                    st.rerun()
+        else:
+            # 既存ポイントの編集モード
+            if layer_ref["points"][selected_pt_idx] != new_pt:
+                layer_ref["points"][selected_pt_idx] = new_pt
+                st.rerun()
+
+    if st.button("✅ 完了して閉じる", use_container_width=True, type="primary"):
+        st.rerun()
+
 # --- タイトル表示 ---
 st.markdown('<div class="main-title">RoomSimulator</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">部屋の写真に建材・壁紙・床材をインタラクティブにシミュレーション</div>', unsafe_allow_html=True)
@@ -274,9 +294,24 @@ if uploaded_room is not None:
     st.subheader("1. 張り替えエリアの選択")
     st.caption("角を順にタップしてエリアを指定してください（4箇所推奨、最大8点）。")
 
-    if st.button("選択中のタップ点をリセット"):
-        st.session_state.current_points = []
-        st.rerun()
+    col_btn1, col_btn2 = st.columns([2, 1])
+    with col_btn1:
+        if st.button("🔍 全画面（大きめ）でピン留め操作を開く", use_container_width=True, type="primary"):
+            current_combined_np = render_all_layers(original_np, st.session_state.layers)
+            img_disp = current_combined_np.copy()
+            for i, pt in enumerate(st.session_state.current_points):
+                cv2.circle(img_disp, (pt[0], pt[1]), 10, (255, 0, 0), -1)
+                cv2.putText(img_disp, str(i + 1), (pt[0] + 15, pt[1] + 15),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+            if len(st.session_state.current_points) >= 3:
+                pts_arr = np.array(st.session_state.current_points, np.int32).reshape((-1, 1, 2))
+                cv2.polylines(img_disp, [pts_arr], isClosed=True, color=(255, 0, 0), thickness=3)
+            open_point_selection_dialog(Image.fromarray(img_disp), is_edit=False)
+
+    with col_btn2:
+        if st.button("タップ点をリセット", use_container_width=True):
+            st.session_state.current_points = []
+            st.rerun()
 
     # 現在のレイヤー群を重ね合わせた状態の画像を準備
     current_combined_np = render_all_layers(original_np, st.session_state.layers)
@@ -417,6 +452,9 @@ if uploaded_room is not None:
                     st.rerun()
 
                 st.caption(f"💡 「点 {selected_pt_idx+1}」を移動したい場所を画像上で直接タップするか、下の矢印ボタンで微調整できます。")
+
+                if st.button(f"🔍 全画面モードで「点 {selected_pt_idx+1}」の位置を調整する", key=f"btn_modal_edit_{idx}"):
+                    open_point_selection_dialog(layer_prev_pil, is_edit=True, layer_ref=layer, selected_pt_idx=selected_pt_idx)
 
                 # 画像上での直接タップ検知（ワンタップで大きく移動）
                 edit_coords = streamlit_image_coordinates(layer_prev_pil, key=f"edit_coords_{idx}")
