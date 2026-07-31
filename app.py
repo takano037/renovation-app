@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import cv2
 import numpy as np
@@ -76,33 +77,32 @@ if uploaded_room is not None:
     tex_img = None
 
     with tab1:
-        target_type = st.radio("張り替える部位", ["床材", "壁紙"], horizontal=True)
-        if target_type == "床材":
-            selected_material = st.selectbox("床材パターン", ["オークフローリング（ナチュラル木目）", "ダークウォールナット（深み木目）"])
-            pattern_key = "oak" if "オーク" in selected_material else "walnut"
-        else:
-            selected_material = st.selectbox("壁紙パターン", ["シックグレー（織物クロス調）", "レンガ調ホワイトクロス"])
-            pattern_key = "gray_fabric" if "グレー" in selected_material else "brick"
+        assets_dir = "assets"
+        # assets フォルダ内の画像ファイルを自動取得
+        preset_files = []
+        if os.path.exists(assets_dir):
+            preset_files = [f for f in os.listdir(assets_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
 
-        preset_tex = np.zeros((400, 400, 3), dtype=np.uint8)
-        if pattern_key == "oak":
+        if preset_files:
+            selected_file = st.selectbox("登録済みプリセット画像", preset_files)
+            file_path = os.path.join(assets_dir, selected_file)
+            
+            preset_pil = Image.open(file_path)
+            preset_pil = ImageOps.exif_transpose(preset_pil)
+            preset_np = np.array(preset_pil)
+            if preset_np.shape[2] == 4:
+                preset_np = cv2.cvtColor(preset_np, cv2.COLOR_RGBA2RGB)
+            tex_img = preset_np
+            
+            st.image(preset_pil, caption=f"選択中: {selected_file}", width=150)
+        else:
+            st.warning("`assets` フォルダに画像がまだありません。手描きサンプルを表示します。")
+            # フォールバック用の手描きサンプル
+            preset_tex = np.zeros((400, 400, 3), dtype=np.uint8)
             preset_tex[:] = (210, 180, 140)
             for y in range(0, 400, 40):
                 cv2.line(preset_tex, (0, y), (400, y), (180, 150, 110), 3)
-        elif pattern_key == "walnut":
-            preset_tex[:] = (80, 55, 35)
-            for y in range(0, 400, 50):
-                cv2.line(preset_tex, (0, y), (400, y), (50, 35, 20), 4)
-        elif pattern_key == "brick":
-            preset_tex[:] = (245, 245, 240)
-            for y in range(0, 400, 40):
-                cv2.line(preset_tex, (0, y), (400, y), (200, 200, 190), 2)
-        else:
-            preset_tex[:] = (130, 135, 140)
-            for i in range(0, 400, 10):
-                cv2.line(preset_tex, (i, 0), (i, 400), (115, 120, 125), 1)
-
-        tex_img = preset_tex
+            tex_img = preset_tex
 
     with tab2:
         uploaded_texture = st.file_uploader("お持ちの素材画像（JPG/PNG）をアップロード", type=["jpg", "jpeg", "png"])
@@ -115,7 +115,7 @@ if uploaded_room is not None:
             tex_img = custom_np
             st.success("カスタム素材画像を使用します！")
 
-    # 3. 合成処理（明るさ保持＋ナチュラル陰影ブレンド）
+    # 3. 合成処理
     if len(st.session_state.points) >= 3:
         if st.button("イメージを合成する"):
             pts_cnt = len(st.session_state.points)
@@ -131,15 +131,11 @@ if uploaded_room is not None:
                 th, tw, _ = tex_img.shape
                 warped_texture = np.tile(tex_img, (h // th + 1, w // tw + 1, 1))[:h, :w]
 
-            # --- 明るさを潰さないマイルド陰影ブレンド ---
-            # 1. 元画像の明暗（グレースケール）を取得
+            # ナチュラル陰影ブレンド
             gray_orig = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY).astype(float) / 255.0
-            
-            # 2. 影の強さを調整（元背景の暗さを抑え、明るさを80%以上保持）
             shadow_map = 0.75 + (gray_orig * 0.25)
             shadow_map = np.dstack([shadow_map, shadow_map, shadow_map])
 
-            # 3. 素材画像本来の発色と明るさを保ちつつ薄く影をのせる
             blended_texture = (warped_texture.astype(float) * shadow_map).clip(0, 255).astype(np.uint8)
 
             # マスク適用
