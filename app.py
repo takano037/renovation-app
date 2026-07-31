@@ -89,6 +89,76 @@ def render_all_layers(original_img, layers):
         )
     return result
 
+# --- 素材ギャラリー用ポップアップモーダル関数 ---
+@st.dialog("🎨 素材ギャラリーから選択", width="large")
+def open_material_gallery(folder_path, state_key_to_set):
+    st.write(f"**カテゴリ: {os.path.basename(folder_path)}**")
+    files = sorted([f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+    
+    if files:
+        st.markdown("""
+            <style>
+            div[data-testid="stHorizontalBlock"] {
+                display: flex !important;
+                flex-direction: row !important;
+                flex-wrap: nowrap !important;
+                gap: 0.2rem !important;
+            }
+            div[data-testid="column"] {
+                width: 19% !important;
+                flex: 0 0 19% !important;
+                min-width: 19% !important;
+                padding: 0px !important;
+            }
+            div[data-testid="column"] img {
+                height: 55px !important;
+                object-fit: cover !important;
+                border-radius: 4px !important;
+            }
+            div[data-testid="column"] button,
+            div[data-testid="column"] button[kind="primary"],
+            div[data-testid="column"] button[kind="secondary"] {
+                padding: 2px 0px !important;
+                font-size: 10px !important;
+                background-color: #2e5a44 !important;
+                background: #2e5a44 !important;
+                color: white !important;
+                border: none !important;
+                border-radius: 3px !important;
+                min-height: 22px !important;
+                height: 22px !important;
+            }
+            div[data-testid="column"] button:hover {
+                background-color: #1f3f2f !important;
+                color: white !important;
+            }
+            div[data-testid="column"] button:disabled {
+                background-color: #e0e0e0 !important;
+                color: #888888 !important;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
+        cols_per_row = 5
+        for i in range(0, len(files), cols_per_row):
+            cols = st.columns(cols_per_row)
+            for j in range(cols_per_row):
+                if i + j < len(files):
+                    filename = files[i + j]
+                    file_path = os.path.join(folder_path, filename)
+                    img_thumb = Image.open(file_path)
+                    img_thumb = ImageOps.exif_transpose(img_thumb)
+                    
+                    with cols[j]:
+                        st.image(img_thumb, use_container_width=True)
+                        is_selected = (file_path == st.session_state.get(state_key_to_set))
+                        btn_label = "✅" if is_selected else "選択"
+                        if st.button(btn_label, key=f"dialog_btn_{file_path}_{state_key_to_set}", disabled=is_selected, use_container_width=True):
+                            st.session_state[state_key_to_set] = file_path
+                            st.rerun()
+    else:
+        st.warning("このフォルダには画像がありません。")
+
 st.title("🏠 リフォームイメージ作成")
 st.write("部屋の写真をアップロードして、各部位の素材や調整内容を自由に変更・調整してみましょう。")
 
@@ -174,8 +244,17 @@ if uploaded_room is not None:
             target_path = os.path.join(assets_dir, selected_folder)
             files = sorted([f for f in os.listdir(target_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
             if files:
-                selected_file = st.selectbox("🖼️ 素材画像を選択", files)
-                full_tex_path = os.path.join(target_path, selected_file)
+                # デフォルトの選択画像をセット
+                if "new_selected_tex_path" not in st.session_state or not os.path.exists(st.session_state.new_selected_tex_path):
+                    st.session_state.new_selected_tex_path = os.path.join(target_path, files[0])
+
+                if st.button("🖼️ 素材ギャラリー（一覧）を開く", key="btn_open_gallery_new"):
+                    open_material_gallery(target_path, "new_selected_tex_path")
+
+                # 現在選択中の素材プレビュー
+                if os.path.exists(st.session_state.new_selected_tex_path):
+                    st.caption("現在選択中の素材:")
+                    st.image(st.session_state.new_selected_tex_path, width=100)
 
                 col1, col2 = st.columns(2)
                 with col1:
@@ -188,7 +267,7 @@ if uploaded_room is not None:
                     st.session_state.layers.append({
                         "name": layer_name,
                         "points": st.session_state.current_points.copy(),
-                        "tex_path": full_tex_path,
+                        "tex_path": st.session_state.new_selected_tex_path,
                         "rotation_opt": rot,
                         "repeat_count": rep,
                         "opacity_pct": opac
@@ -219,12 +298,17 @@ if uploaded_room is not None:
                     sel_fol = st.selectbox("📂 カテゴリ変更", subfolders, index=folder_idx, key=f"fol_{idx}")
 
                     t_path = os.path.join(assets_dir, sel_fol)
-                    files = sorted([f for f in os.listdir(t_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
-                    if files:
-                        cur_file = os.path.basename(layer["tex_path"])
-                        file_idx = files.index(cur_file) if cur_file in files else 0
-                        sel_file = st.selectbox("🖼️ 素材変更", files, index=file_idx, key=f"file_{idx}")
-                        layer["tex_path"] = os.path.join(t_path, sel_file)
+                    
+                    if st.button("🖼️ 素材ギャラリー（一覧）を開く", key=f"btn_gal_{idx}"):
+                        # レイヤー用のセッションキーを一時的に作成して渡す
+                        st.session_state[f"layer_tex_{idx}"] = layer["tex_path"]
+                        open_material_gallery(t_path, f"layer_tex_{idx}")
+
+                    if f"layer_tex_{idx}" in st.session_state and os.path.exists(st.session_state[f"layer_tex_{idx}"]):
+                        layer["tex_path"] = st.session_state[f"layer_tex_{idx}"]
+
+                    st.caption("現在選択中の素材:")
+                    st.image(layer["tex_path"], width=100)
 
                 # パラメータ調整
                 c1, c2 = st.columns(2)
